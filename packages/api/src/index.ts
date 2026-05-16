@@ -1,0 +1,69 @@
+import { serve } from '@hono/node-server'
+import { Hono } from 'hono'
+import { cors } from 'hono/cors'
+import { logger } from 'hono/logger'
+import { secureHeaders } from 'hono/secure-headers'
+import { intentRoute } from './routes/intent.js'
+import { searchRoute } from './routes/search.js'
+import { tokenRoute } from './routes/token.js'
+import { orderRoute } from './routes/order.js'
+import { escrowRoute } from './routes/escrow.js'
+import { sellersRoute } from './routes/sellers.js'
+import { preferencesRoute } from './routes/preferences.js'
+import { signalsRoute } from './routes/signals.js'
+import { authMiddleware } from './middleware/auth.js'
+import { rateLimitMiddleware } from './middleware/rateLimit.js'
+
+const app = new Hono()
+
+// ── Global middleware ──────────────────────────────────────────────────────────
+app.use('*', logger())
+app.use('*', secureHeaders())
+app.use('*', cors({
+  origin: ['https://taylin.ai'],  // restrict in production
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 600,
+}))
+
+// ── Health check — no auth required ───────────────────────────────────────────
+app.get('/health', (c) => c.json({ ok: true, service: 'taylin-api' }))
+
+// ── Protected routes — auth + rate limit on all ───────────────────────────────
+app.use('/intent', authMiddleware)
+app.use('/search/*', authMiddleware)
+app.use('/token', authMiddleware)
+app.use('/order', authMiddleware)
+app.use('/escrow/*', authMiddleware)
+app.use('/preferences/*', authMiddleware)
+app.use('/signals/*', authMiddleware)
+
+app.use('/intent', rateLimitMiddleware('searches'))
+app.use('/order', rateLimitMiddleware('orders'))
+
+// ── Route mounting ────────────────────────────────────────────────────────────
+app.route('/intent', intentRoute)
+app.route('/search', searchRoute)
+app.route('/token', tokenRoute)
+app.route('/order', orderRoute)
+app.route('/escrow', escrowRoute)
+app.route('/sellers', sellersRoute)
+app.route('/preferences', preferencesRoute)
+app.route('/signals', signalsRoute)
+
+// ── 404 handler ───────────────────────────────────────────────────────────────
+app.notFound((c) => c.json({ error: 'Not found' }, 404))
+
+app.onError((err, c) => {
+  // Never leak stack traces in production
+  const isProd = process.env.NODE_ENV === 'production'
+  console.error(isProd ? err.message : err)
+  return c.json({ error: 'Internal server error' }, 500)
+})
+
+const port = parseInt(process.env.PORT ?? '3000', 10)
+serve({ fetch: app.fetch, port }, () => {
+  console.log(`taylin.ai API running on port ${port}`)
+})
+
+export default app

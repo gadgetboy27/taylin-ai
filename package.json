@@ -1,0 +1,22 @@
+{
+  "name": "taylin-ai",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/mobile",
+    "packages/api"
+  ],
+  "scripts": {
+    "mobile": "npm run start --workspace=apps/mobile",
+    "api": "npm run dev --workspace=packages/api",
+    "install:all": "npm install",
+    "typecheck": "npm run typecheck --workspace=apps/mobile && npm run typecheck --workspace=packages/api"
+  },
+  "devDependencies": {
+    "@expo/config-plugins": "^55.0.9",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
