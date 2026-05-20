@@ -14,6 +14,11 @@ export function useSpeech(onResult: (text: string) => void) {
   const recordingRef = useRef<Audio.Recording | null>(null)
 
   const startListening = useCallback(async () => {
+    if (Platform.OS === 'web') {
+      setError('Voice input is not supported in the browser')
+      setState('error')
+      return
+    }
     try {
       setError(null)
       setPartialResult('')

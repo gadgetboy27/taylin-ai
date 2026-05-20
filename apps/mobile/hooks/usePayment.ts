@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import * as LocalAuthentication from 'expo-local-authentication'
+import { Platform } from 'react-native'
 import { supabase } from '@/lib/supabase'
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL
@@ -18,17 +19,18 @@ export function usePayment() {
     setStatus('authenticating')
     setError(null)
 
-    // Biometric gate — required before any payment
-    const biometricResult = await LocalAuthentication.authenticateAsync({
-      promptMessage: 'Confirm payment with Face ID or Touch ID',
-      fallbackLabel: 'Use passcode',
-      cancelLabel: 'Cancel',
-    })
-
-    if (!biometricResult.success) {
-      setStatus('error')
-      setError('Authentication cancelled')
-      throw new Error('Authentication cancelled')
+    // Biometric gate — skipped on web (no native biometric API)
+    if (Platform.OS !== 'web') {
+      const biometricResult = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Confirm payment with Face ID or Touch ID',
+        fallbackLabel: 'Use passcode',
+        cancelLabel: 'Cancel',
+      })
+      if (!biometricResult.success) {
+        setStatus('error')
+        setError('Authentication cancelled')
+        throw new Error('Authentication cancelled')
+      }
     }
 
     const { data: { session } } = await supabase.auth.getSession()
