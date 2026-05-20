@@ -34,6 +34,13 @@ export default function SignInScreen() {
   const sendCode = useCallback(async () => {
     const trimmed = email.trim().toLowerCase()
     if (!trimmed) return
+
+    // Basic format check before hitting the network
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError('Enter a valid email address.')
+      return
+    }
+
     setLoading(true)
     setError(null)
 
@@ -41,7 +48,12 @@ export default function SignInScreen() {
     setLoading(false)
 
     if (err) {
-      setError(err.message)
+      // Supabase rejects disposable/test domains — surface a plain message
+      if (err.message.toLowerCase().includes('invalid') || err.message.toLowerCase().includes('validate')) {
+        setError('That email address isn\'t accepted. Use your real email.')
+      } else {
+        setError(err.message)
+      }
       return
     }
 

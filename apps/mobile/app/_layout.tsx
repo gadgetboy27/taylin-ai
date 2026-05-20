@@ -12,16 +12,22 @@ export default function RootLayout() {
   const navigationReady = useRef(false)
 
   useEffect(() => {
-    // Check session once on mount, then navigate accordingly
-    supabase.auth.getSession().then(({ data }) => {
-      SplashScreen.hideAsync()
-      navigationReady.current = true
-      if (!data.session) {
+    supabase.auth.getSession()
+      .then(({ data }) => {
+        navigationReady.current = true
+        SplashScreen.hideAsync()
+        if (!data.session) {
+          router.replace('/(auth)')
+        }
+      })
+      .catch(() => {
+        // Stale or corrupt session — clear it and go to auth
+        supabase.auth.signOut().catch(() => {})
+        navigationReady.current = true
+        SplashScreen.hideAsync()
         router.replace('/(auth)')
-      }
-    })
+      })
 
-    // Redirect on every future auth state change
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!navigationReady.current) return
       if (session) {
@@ -43,7 +49,8 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="result/[searchId]" options={{ presentation: 'card' }} />
             <Stack.Screen name="result/approve" options={{ presentation: 'modal' }} />
-            <Stack.Screen name="seller" />
+            <Stack.Screen name="seller/index" />
+            <Stack.Screen name="seller/apply" />
           </Stack>
         </ThemeProvider>
       </SafeAreaProvider>
