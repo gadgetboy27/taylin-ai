@@ -5,12 +5,15 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
+  Platform,
   type TextInput as TextInputType,
 } from 'react-native'
+import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/context/ThemeContext'
 import { useSpeech } from '@/hooks/useSpeech'
 import { MIN_TOUCH_TARGET } from '@/lib/accessibility'
+import { floatShadow } from '@/lib/styles'
 
 interface PromptBarProps {
   value: string
@@ -56,8 +59,8 @@ export function PromptBar({
 
   const styles = makeStyles(c)
 
-  return (
-    <View style={styles.container}>
+  const inner = (
+    <View style={styles.inner}>
       <TextInput
         ref={inputRef}
         style={styles.input}
@@ -79,7 +82,6 @@ export function PromptBar({
         accessibilityHint="Tap the microphone button to speak instead"
       />
 
-      {/* Mic button */}
       <Pressable
         style={[styles.iconBtn, isListening && { backgroundColor: c.micActive }]}
         onPress={handleMicPress}
@@ -95,7 +97,6 @@ export function PromptBar({
         />
       </Pressable>
 
-      {/* Submit button */}
       <Pressable
         style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
         onPress={() => onSubmit(value)}
@@ -113,21 +114,42 @@ export function PromptBar({
       </Pressable>
     </View>
   )
+
+  if (Platform.OS === 'ios') {
+    return (
+      <BlurView
+        intensity={68}
+        tint={c.glassTint}
+        style={styles.container}
+      >
+        {inner}
+      </BlurView>
+    )
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: c.promptBg }]}>
+      {inner}
+    </View>
+  )
 }
 
 function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
   return StyleSheet.create({
     container: {
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: c.glassBorder,
+      overflow: 'hidden',
+      ...floatShadow,
+    },
+    inner: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: c.promptBg,
-      borderWidth: 1.5,
-      borderColor: c.promptBorder,
-      borderRadius: 20,
+      backgroundColor: c.glassBackground,
       paddingHorizontal: 16,
       paddingVertical: 10,
       gap: 8,
-      marginVertical: 12,
     },
     input: {
       flex: 1,

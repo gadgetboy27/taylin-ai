@@ -4,6 +4,8 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
+const DEV_BYPASS = process.env.NODE_ENV !== 'production'
+
 export const authMiddleware: MiddlewareHandler = async (c, next) => {
   const authHeader = c.req.header('Authorization')
 
@@ -12,6 +14,14 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
   }
 
   const jwt = authHeader.slice(7)
+
+  // Dev-only: accept a fixed test token so curl/Postman testing works without a real Supabase session
+  if (DEV_BYPASS && jwt === 'dev-test-token') {
+    c.set('userId', '00000000-0000-0000-0000-000000000001')
+    c.set('userJwt', jwt)
+    await next()
+    return
+  }
 
   // Verify the JWT with Supabase — this validates the user's session token
   const client = createClient(supabaseUrl, supabaseServiceKey, {

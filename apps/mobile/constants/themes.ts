@@ -26,6 +26,10 @@ export type ThemeColors = {
   micActive: string
   micInactive: string
   escrowBadge: string
+  // Glass tokens
+  glassTint: 'light' | 'dark' | 'extraLight' | 'regular' | 'prominent' | 'systemUltraThinMaterial' | 'systemThinMaterial' | 'systemMaterial' | 'systemThickMaterial' | 'systemChromeMaterial' | 'default'
+  glassBackground: string
+  glassBorder: string
 }
 
 export type Theme = {
@@ -72,6 +76,9 @@ const light: Theme = {
     micActive: '#3B82F6',
     micInactive: '#9CA3AF',
     escrowBadge: '#DBEAFE',
+    glassTint: 'extraLight',
+    glassBackground: 'rgba(255,255,255,0.72)',
+    glassBorder: 'rgba(180,180,180,0.35)',
   },
 }
 
@@ -109,6 +116,9 @@ const dark: Theme = {
     micActive: '#60A5FA',
     micInactive: '#4B5563',
     escrowBadge: '#1E3A5F',
+    glassTint: 'dark',
+    glassBackground: 'rgba(15,15,15,0.72)',
+    glassBorder: 'rgba(255,255,255,0.12)',
   },
 }
 
@@ -147,6 +157,9 @@ const boys: Theme = {
     micActive: '#1B4D3E',
     micInactive: '#8A7A6A',
     escrowBadge: '#C8DCC4',
+    glassTint: 'light',
+    glassBackground: 'rgba(245,240,232,0.76)',
+    glassBorder: 'rgba(150,130,110,0.30)',
   },
 }
 
@@ -185,6 +198,9 @@ const girls: Theme = {
     micActive: '#B5006E',
     micInactive: '#C48AAA',
     escrowBadge: '#F9D0E3',
+    glassTint: 'light',
+    glassBackground: 'rgba(255,240,245,0.76)',
+    glassBorder: 'rgba(200,130,170,0.30)',
   },
 }
 

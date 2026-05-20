@@ -4,6 +4,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { parseJsonFromText } from './parse-json.js'
 
 const isConfigured = !!process.env.ANTHROPIC_API_KEY && !!process.env.GEMINI_API_KEY
 
@@ -112,9 +113,7 @@ deliveryByDate, qualitySignals, negativeConstraints, urgency, isGift, giftContex
   })
 
   const text = message.content[0].type === 'text' ? message.content[0].text : ''
-  const match = text.match(/\{[\s\S]*\}/)
-  if (!match) return stubBrief(rawPrompt)
-  return JSON.parse(match[0]) as IntentBrief
+  return parseJsonFromText(text, stubBrief(rawPrompt))
 }
 
 export async function rankResults(
@@ -146,14 +145,11 @@ Return JSON:
   })
 
   const text = message.content[0].type === 'text' ? message.content[0].text : '{}'
-  const match = text.match(/\{[\s\S]*\}/)
-  if (!match) return { ranked: candidates.slice(0, 3), summaries: {} }
-
-  const parsed = JSON.parse(match[0]) as {
-    rankedIndices: number[]
-    summaries: Record<string, string>
-  }
-  const ranked = parsed.rankedIndices.map((i) => candidates[i]).filter(Boolean).slice(0, 10)
+  const parsed = parseJsonFromText<{ rankedIndices: number[]; summaries: Record<string, string> }>(
+    text, { rankedIndices: [], summaries: {} }
+  )
+  if (!parsed.rankedIndices.length) return { ranked: candidates.slice(0, 3), summaries: {} }
+  const ranked = (parsed.rankedIndices ?? []).map((i) => candidates[i]).filter(Boolean).slice(0, 10)
   return { ranked, summaries: parsed.summaries ?? {} }
 }
 

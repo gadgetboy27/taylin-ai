@@ -1,6 +1,7 @@
 import React from 'react'
-import { View, Text, StyleSheet, ScrollView } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
 import { ThemeSelector } from '@/components/ThemeSelector'
 
@@ -26,6 +27,22 @@ export default function AgentScreen() {
           </Text>
           <ThemeSelector expanded />
         </View>
+
+        {/* Become a seller */}
+        <Pressable
+          style={styles.sellerCard}
+          onPress={() => router.push('/seller')}
+          accessibilityRole="button"
+          accessibilityLabel="Become a seller on taylin.ai"
+        >
+          <View>
+            <Text style={styles.sellerTitle}>Sell on taylin.ai</Text>
+            <Text style={styles.sellerDesc}>
+              Get your products in front of AI-powered buyers. 5-minute interview to get started.
+            </Text>
+          </View>
+          <Text style={styles.sellerArrow}>→</Text>
+        </Pressable>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Your preference graph</Text>
@@ -66,5 +83,17 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
     infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.borderLight },
     infoLabel: { fontSize: 14, color: c.textSecondary },
     infoValue: { fontSize: 14, fontWeight: '600', color: c.text },
+    sellerCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: c.primary,
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 16,
+    },
+    sellerTitle: { fontSize: 16, fontWeight: '700', color: c.textOnPrimary, marginBottom: 4 },
+    sellerDesc: { fontSize: 13, color: c.textOnPrimary, opacity: 0.8, lineHeight: 18, maxWidth: '85%' },
+    sellerArrow: { fontSize: 20, color: c.textOnPrimary },
   })
 }

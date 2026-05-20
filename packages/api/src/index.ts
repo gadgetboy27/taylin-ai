@@ -11,6 +11,7 @@ import { escrowRoute } from './routes/escrow.js'
 import { sellersRoute } from './routes/sellers.js'
 import { preferencesRoute } from './routes/preferences.js'
 import { signalsRoute } from './routes/signals.js'
+import { voiceRoute } from './routes/voice.js'
 import { authMiddleware } from './middleware/auth.js'
 import { rateLimitMiddleware } from './middleware/rateLimit.js'
 
@@ -20,7 +21,7 @@ const app = new Hono()
 app.use('*', logger())
 app.use('*', secureHeaders())
 app.use('*', cors({
-  origin: ['https://taylin.ai'],  // restrict in production
+  origin: process.env.NODE_ENV === 'production' ? ['https://taylin.ai'] : '*',
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowHeaders: ['Content-Type', 'Authorization'],
   maxAge: 600,
@@ -28,6 +29,17 @@ app.use('*', cors({
 
 // ── Health check — no auth required ───────────────────────────────────────────
 app.get('/health', (c) => c.json({ ok: true, service: 'taylin-api' }))
+
+// ── Dev-only: stateless Taylor chat test (no DB, no auth) ─────────────────────
+if (process.env.NODE_ENV !== 'production') {
+  app.post('/dev/taylor', async (c) => {
+    const { conductInterview } = await import('./lib/seller-interview.js')
+    const body = await c.req.json() as { history?: unknown[] }
+    const history = (body.history ?? []) as Parameters<typeof conductInterview>[0]
+    const { response } = await conductInterview(history, {})
+    return c.json({ message: response.message, stage: response.stage, complete: response.complete })
+  })
+}
 
 // ── Protected routes — auth + rate limit on all ───────────────────────────────
 app.use('/intent', authMiddleware)
@@ -37,6 +49,7 @@ app.use('/order', authMiddleware)
 app.use('/escrow/*', authMiddleware)
 app.use('/preferences/*', authMiddleware)
 app.use('/signals/*', authMiddleware)
+app.use('/voice/*', authMiddleware)
 
 app.use('/intent', rateLimitMiddleware('searches'))
 app.use('/order', rateLimitMiddleware('orders'))
@@ -50,6 +63,7 @@ app.route('/escrow', escrowRoute)
 app.route('/sellers', sellersRoute)
 app.route('/preferences', preferencesRoute)
 app.route('/signals', signalsRoute)
+app.route('/voice', voiceRoute)
 
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.notFound((c) => c.json({ error: 'Not found' }, 404))
