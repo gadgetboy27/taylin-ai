@@ -48,9 +48,11 @@ export default function SignInScreen() {
     setLoading(false)
 
     if (err) {
-      // Supabase rejects disposable/test domains — surface a plain message
-      if (err.message.toLowerCase().includes('invalid') || err.message.toLowerCase().includes('validate')) {
-        setError('That email address isn\'t accepted. Use your real email.')
+      const msg = err.message.toLowerCase()
+      if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('over_email')) {
+        setError('Too many attempts — wait a minute then try again.')
+      } else if (msg.includes('invalid') || msg.includes('validate')) {
+        setError("That email address isn't accepted. Use your real email.")
       } else {
         setError(err.message)
       }
