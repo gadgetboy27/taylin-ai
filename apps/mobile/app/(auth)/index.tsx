@@ -16,15 +16,17 @@ import { ThemeSelector } from '@/components/ThemeSelector'
 import { supabase } from '@/lib/supabase'
 import { cardShadow } from '@/lib/styles'
 
-type Step = 'email' | 'code'
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001'
+
+type Step = 'phone' | 'code'
 
 export default function SignInScreen() {
   const { theme } = useTheme()
   const c = theme.colors
   const styles = makeStyles(c)
 
-  const [step, setStep] = useState<Step>('email')
-  const [email, setEmail] = useState('')
+  const [step, setStep] = useState<Step>('phone')
+  const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -32,59 +34,91 @@ export default function SignInScreen() {
   const codeRef = useRef<TextInputType>(null)
 
   const sendCode = useCallback(async () => {
-    const trimmed = email.trim().toLowerCase()
+    const trimmed = phone.trim()
     if (!trimmed) return
-
-    // Basic format check before hitting the network
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      setError('Enter a valid email address.')
-      return
-    }
 
     setLoading(true)
     setError(null)
 
-    const { error: err } = await supabase.auth.signInWithOtp({ email: trimmed })
-    setLoading(false)
+    try {
+      const res = await fetch(`${API_URL}/auth/sms/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: trimmed }),
+      })
+      const data = await res.json() as { sent?: boolean; error?: string; devCode?: string }
 
-    if (err) {
-      const msg = err.message.toLowerCase()
-      if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('over_email')) {
-        setError('Too many attempts — wait a minute then try again.')
-      } else if (msg.includes('invalid') || msg.includes('validate')) {
-        setError("That email address isn't accepted. Use your real email.")
-      } else {
-        setError(err.message)
+      if (!res.ok || data.error) {
+        setError(data.error ?? 'Could not send code — try again.')
+        return
       }
-      return
-    }
 
-    setStep('code')
-    setTimeout(() => codeRef.current?.focus(), 300)
-  }, [email])
+      // Dev mode: code comes back in the response, pre-fill it
+      if (data.devCode) setCode(data.devCode)
+
+      setStep('code')
+      setTimeout(() => codeRef.current?.focus(), 300)
+    } catch {
+      setError('Could not reach the server. Is the API running?')
+    } finally {
+      setLoading(false)
+    }
+  }, [phone])
 
   const verifyCode = useCallback(async () => {
     const trimmed = code.trim()
-    if (trimmed.length < 6) return
+    if (trimmed.length !== 6) return
+
     setLoading(true)
     setError(null)
 
-    const { error: err } = await supabase.auth.verifyOtp({
-      email: email.trim().toLowerCase(),
-      token: trimmed,
-      type: 'email',
-    })
-    setLoading(false)
+    try {
+      const res = await fetch(`${API_URL}/auth/sms/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone.trim(), code: trimmed }),
+      })
+      const data = await res.json() as {
+        verified?: boolean
+        email?: string
+        token?: string
+        needsEmail?: boolean
+        error?: string
+      }
 
-    if (err) {
-      setError(err.message)
-      return
+      if (!res.ok || data.error) {
+        setError(data.error ?? 'Verification failed — try again.')
+        return
+      }
+
+      if (data.needsEmail) {
+        // New user — for now sign them in via email prompt (future: collect email inline)
+        setError('Account not found for this number. Sign in with email first to link your phone.')
+        return
+      }
+
+      // Exchange the admin-issued token for a real Supabase session
+      if (data.email && data.token) {
+        const { error: supaErr } = await supabase.auth.verifyOtp({
+          email: data.email,
+          token: data.token,
+          type: 'email',
+        })
+        if (supaErr) {
+          setError(supaErr.message)
+          return
+        }
+        // _layout.tsx auth listener handles navigation to (tabs)
+      }
+    } catch {
+      setError('Could not reach the server. Is the API running?')
+    } finally {
+      setLoading(false)
     }
-    // _layout.tsx auth listener handles the navigation to (tabs)
-  }, [email, code])
+  }, [phone, code])
 
   const goBack = useCallback(() => {
-    setStep('email')
+    setStep('phone')
     setCode('')
     setError(null)
   }, [])
@@ -95,33 +129,29 @@ export default function SignInScreen() {
         style={styles.kav}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Theme picker — top right */}
         <View style={styles.topBar}>
           <ThemeSelector />
         </View>
 
-        {/* Main content */}
         <View style={styles.content}>
           <Text style={styles.wordmark}>taylin.ai</Text>
           <Text style={styles.tagline}>Find it. Verify it. Protect it.</Text>
 
           <View style={[styles.card, cardShadow]}>
-            {step === 'email' ? (
+            {step === 'phone' ? (
               <>
                 <Text style={styles.cardTitle}>Sign in</Text>
-                <Text style={styles.cardSub}>We'll send a code to your email — no password needed.</Text>
+                <Text style={styles.cardSub}>Enter your mobile number — we'll text you a code.</Text>
 
                 <TextInput
                   style={styles.input}
-                  value={email}
-                  onChangeText={(t) => { setEmail(t); setError(null) }}
-                  placeholder="you@email.com"
+                  value={phone}
+                  onChangeText={(t) => { setPhone(t); setError(null) }}
+                  placeholder="+64 21 123 4567"
                   placeholderTextColor={c.textMuted}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="email"
-                  textContentType="emailAddress"
+                  keyboardType="phone-pad"
+                  autoComplete="tel"
+                  textContentType="telephoneNumber"
                   returnKeyType="send"
                   onSubmitEditing={sendCode}
                   editable={!loading}
@@ -131,26 +161,25 @@ export default function SignInScreen() {
                 {error && <Text style={styles.errorText}>{error}</Text>}
 
                 <Pressable
-                  style={[styles.btn, (!email.trim() || loading) && styles.btnDisabled]}
+                  style={[styles.btn, (!phone.trim() || loading) && styles.btnDisabled]}
                   onPress={sendCode}
-                  disabled={!email.trim() || loading}
+                  disabled={!phone.trim() || loading}
                   accessibilityRole="button"
-                  accessibilityLabel="Send sign-in code"
                 >
                   {loading
                     ? <ActivityIndicator color={c.textOnPrimary} />
-                    : <Text style={styles.btnText}>Continue</Text>
+                    : <Text style={styles.btnText}>Send code</Text>
                   }
                 </Pressable>
               </>
             ) : (
               <>
                 <Pressable onPress={goBack} style={styles.backRow} accessibilityRole="button">
-                  <Text style={styles.backText}>← {email}</Text>
+                  <Text style={styles.backText}>← {phone}</Text>
                 </Pressable>
 
-                <Text style={styles.cardTitle}>Check your inbox</Text>
-                <Text style={styles.cardSub}>Enter the 6-digit code we sent you.</Text>
+                <Text style={styles.cardTitle}>Check your messages</Text>
+                <Text style={styles.cardSub}>Enter the 6-digit code we sent.</Text>
 
                 <TextInput
                   ref={codeRef}
@@ -175,7 +204,6 @@ export default function SignInScreen() {
                   onPress={verifyCode}
                   disabled={code.length < 6 || loading}
                   accessibilityRole="button"
-                  accessibilityLabel="Verify code"
                 >
                   {loading
                     ? <ActivityIndicator color={c.textOnPrimary} />
@@ -208,33 +236,11 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.background },
     kav: { flex: 1 },
+    topBar: { paddingHorizontal: 20, paddingTop: 12, alignItems: 'flex-end' },
+    content: { flex: 1, justifyContent: 'center', paddingHorizontal: 24, gap: 8 },
 
-    topBar: {
-      paddingHorizontal: 20,
-      paddingTop: 12,
-      alignItems: 'flex-end',
-    },
-
-    content: {
-      flex: 1,
-      justifyContent: 'center',
-      paddingHorizontal: 24,
-      gap: 8,
-    },
-
-    wordmark: {
-      fontSize: 40,
-      fontWeight: '800',
-      color: c.text,
-      letterSpacing: -1.5,
-      textAlign: 'center',
-    },
-    tagline: {
-      fontSize: 14,
-      color: c.textMuted,
-      textAlign: 'center',
-      marginBottom: 24,
-    },
+    wordmark: { fontSize: 40, fontWeight: '800', color: c.text, letterSpacing: -1.5, textAlign: 'center' },
+    tagline: { fontSize: 14, color: c.textMuted, textAlign: 'center', marginBottom: 24 },
 
     card: {
       backgroundColor: c.glassBackground,
@@ -244,18 +250,8 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
       padding: 24,
       gap: 12,
     },
-
-    cardTitle: {
-      fontSize: 22,
-      fontWeight: '700',
-      color: c.text,
-    },
-    cardSub: {
-      fontSize: 14,
-      color: c.textSecondary,
-      lineHeight: 20,
-      marginBottom: 4,
-    },
+    cardTitle: { fontSize: 22, fontWeight: '700', color: c.text },
+    cardSub: { fontSize: 14, color: c.textSecondary, lineHeight: 20, marginBottom: 4 },
 
     input: {
       backgroundColor: c.background,
@@ -267,59 +263,18 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
       fontSize: 16,
       color: c.text,
     },
-    codeInput: {
-      fontSize: 30,
-      fontWeight: '700',
-      letterSpacing: 10,
-      textAlign: 'center',
-      paddingVertical: 16,
-    },
+    codeInput: { fontSize: 30, fontWeight: '700', letterSpacing: 10, textAlign: 'center', paddingVertical: 16 },
 
-    btn: {
-      backgroundColor: c.primary,
-      borderRadius: 14,
-      height: 52,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginTop: 4,
-    },
+    btn: { backgroundColor: c.primary, borderRadius: 14, height: 52, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
     btnDisabled: { opacity: 0.4 },
-    btnText: {
-      color: c.textOnPrimary,
-      fontSize: 16,
-      fontWeight: '700',
-    },
+    btnText: { color: c.textOnPrimary, fontSize: 16, fontWeight: '700' },
 
-    errorText: {
-      fontSize: 13,
-      color: c.error,
-      textAlign: 'center',
-    },
+    errorText: { fontSize: 13, color: c.error, textAlign: 'center' },
+    backRow: { marginBottom: 4 },
+    backText: { fontSize: 13, color: c.accent },
+    resendRow: { alignItems: 'center', paddingVertical: 4 },
+    resendText: { fontSize: 13, color: c.textMuted },
 
-    backRow: {
-      marginBottom: 4,
-    },
-    backText: {
-      fontSize: 13,
-      color: c.accent,
-    },
-
-    resendRow: {
-      alignItems: 'center',
-      paddingVertical: 4,
-    },
-    resendText: {
-      fontSize: 13,
-      color: c.textMuted,
-    },
-
-    legal: {
-      fontSize: 11,
-      color: c.textMuted,
-      textAlign: 'center',
-      paddingHorizontal: 32,
-      paddingBottom: 16,
-      lineHeight: 16,
-    },
+    legal: { fontSize: 11, color: c.textMuted, textAlign: 'center', paddingHorizontal: 32, paddingBottom: 16, lineHeight: 16 },
   })
 }
