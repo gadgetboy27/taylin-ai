@@ -1,5 +1,5 @@
 import React from 'react'
-import { View, Text, Pressable, Image, StyleSheet } from 'react-native'
+import { View, Text, Pressable, Image, StyleSheet, Linking } from 'react-native'
 import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
 import { EscrowBadge } from './EscrowBadge'
@@ -12,12 +12,21 @@ export type Product = {
   price?: number
   currency?: string
   images?: string[]
-  seller_id: string
+  seller_id?: string
+  url?: string
+  source?: 'ebay' | 'trademe' | 'web' | 'amadeus'
   delivery_days_min?: number
   delivery_days_max?: number
   aiSummary?: string
   sellerTier?: 1 | 2 | 3
   searchId: string
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  ebay: 'eBay',
+  trademe: 'Trade Me',
+  web: 'Web',
+  amadeus: 'Flights',
 }
 
 interface ResultCardProps {
@@ -33,15 +42,18 @@ export function ResultCard({ product, rank }: ResultCardProps) {
   const currency = product.currency ?? 'NZD'
   const tier = product.sellerTier ?? 2
   const image = product.images?.[0]
+  const isExternal = !!product.source
+  const sourceLabel = product.source ? SOURCE_LABEL[product.source] ?? product.source : null
   const deliveryText =
     product.delivery_days_min != null
       ? `${product.delivery_days_min}–${product.delivery_days_max} day delivery`
-      : 'Delivery TBC'
+      : isExternal ? 'View listing for delivery info' : 'Delivery TBC'
 
   const isTopPick = rank === 1
 
   const accessLabel = [
     isTopPick ? 'Top pick:' : `Result ${rank}:`,
+    sourceLabel ? `via ${sourceLabel}.` : null,
     product.name,
     product.price != null ? `$${product.price.toFixed(2)} ${currency}.` : 'Price on request.',
     deliveryText + '.',
@@ -50,6 +62,23 @@ export function ResultCard({ product, rank }: ResultCardProps) {
     .filter(Boolean)
     .join(' ')
 
+  const handlePress = () => {
+    if (isExternal && product.url) {
+      Linking.openURL(product.url)
+    } else {
+      router.push({
+        pathname: '/result/approve',
+        params: {
+          searchId: product.searchId,
+          productId: product.id,
+          amount: product.price != null ? String(product.price) : '0',
+          sellerTier: String(tier),
+          productName: product.name,
+        },
+      })
+    }
+  }
+
   return (
     <Pressable
       style={({ pressed }) => [
@@ -57,20 +86,9 @@ export function ResultCard({ product, rank }: ResultCardProps) {
         isTopPick && styles.cardTopPick,
         pressed && styles.cardPressed,
       ]}
-      onPress={() =>
-        router.push({
-          pathname: '/result/approve',
-          params: {
-            searchId: product.searchId,
-            productId: product.id,
-            amount: product.price != null ? String(product.price) : '0',
-            sellerTier: String(tier),
-            productName: product.name,
-          },
-        })
-      }
+      onPress={handlePress}
       accessibilityLabel={accessLabel}
-      accessibilityHint="Tap to review and approve this purchase"
+      accessibilityHint={isExternal ? `Opens ${sourceLabel} listing in browser` : 'Tap to review and approve this purchase'}
       accessibilityRole="button"
     >
       {/* Top pick label */}
@@ -113,7 +131,13 @@ export function ResultCard({ product, rank }: ResultCardProps) {
               </Text>
               <Text style={styles.delivery}>{deliveryText}</Text>
             </View>
-            <EscrowBadge tier={tier} compact />
+            {isExternal && sourceLabel ? (
+              <View style={styles.sourceBadge}>
+                <Text style={styles.sourceBadgeText}>{sourceLabel}</Text>
+              </View>
+            ) : (
+              <EscrowBadge tier={tier} compact />
+            )}
           </View>
         </View>
       </View>
@@ -204,6 +228,17 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
       fontSize: 11,
       color: c.textMuted,
       marginTop: 2,
+    },
+    sourceBadge: {
+      backgroundColor: c.chipBg,
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+    },
+    sourceBadgeText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: c.textMuted,
     },
   })
 }
