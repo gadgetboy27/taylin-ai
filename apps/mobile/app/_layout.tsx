@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { Platform } from 'react-native'
 import { Stack, router } from 'expo-router'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
@@ -7,6 +8,22 @@ import { ThemeProvider } from '@/context/ThemeContext'
 import { supabase } from '@/lib/supabase'
 
 SplashScreen.preventAutoHideAsync()
+
+// Silence errors thrown by browser extensions (MetaMask, etc.) so they don't
+// surface in our React error boundary or pollute the console as "Uncaught".
+if (Platform.OS === 'web' && typeof window !== 'undefined') {
+  const isBrowserExtension = (src?: string) =>
+    typeof src === 'string' && src.startsWith('chrome-extension://')
+
+  window.addEventListener('error', (e) => {
+    if (isBrowserExtension(e.filename)) { e.stopImmediatePropagation(); e.preventDefault() }
+  }, true)
+
+  window.addEventListener('unhandledrejection', (e) => {
+    const src = (e.reason as Error | undefined)?.stack ?? ''
+    if (src.includes('chrome-extension://')) { e.stopImmediatePropagation(); e.preventDefault() }
+  }, true)
+}
 
 export default function RootLayout() {
   const navigationReady = useRef(false)
