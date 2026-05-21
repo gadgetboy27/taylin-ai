@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { supabase } from '../lib/supabase.js'
 import { TIER_CONFIG } from '../lib/tiers.js'
 import { validateOrder } from '../middleware/validate.js'
+import { recordSignal } from '../lib/preferences.js'
 
 export const orderRoute = new Hono()
 
@@ -48,6 +49,12 @@ orderRoute.post('/', validateOrder, async (c) => {
   if (error || !order) {
     return c.json({ error: 'Failed to create order' }, 500)
   }
+
+  // Purchase is the strongest positive signal — update preferences in background
+  const category = (product as { category?: string }).category ?? 'retail'
+  recordSignal(userId, category, product, 'purchase').catch((err) =>
+    console.error('[preferences] purchase signal failed:', err)
+  )
 
   return c.json({ orderId: order.id, status: escrowHeld ? 'escrowed' : 'pending' })
 })

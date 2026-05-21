@@ -5,6 +5,8 @@ import { supabase } from '../lib/supabase.js'
 import { rankResults } from '../lib/ai-wrapper.js'
 import { searchFlights } from '../lib/amadeus.js'
 import { searchTrademe, searchTrademeMotors, isTrademeconfigured } from '../lib/trademe.js'
+import { searchEbay, isEbayConfigured } from '../lib/ebay.js'
+import { searchWeb, isWebSearchConfigured } from '../lib/web-search.js'
 
 export const searchRoute = new Hono()
 
@@ -30,8 +32,10 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
 
   const query = brief.searchTerms.join(' ')
   let candidates: unknown[] = []
+  const sources: string[] = []
 
   if (brief.category === 'flights') {
+    // Flights have their own structured adapter — don't mix with product sources
     const terms = brief.searchTerms
     if (terms.length >= 2) {
       candidates = await searchFlights({
@@ -41,25 +45,52 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
         maxPrice: brief.priceMax,
       }).catch(() => [])
     }
-  } else if (brief.category === 'marketplace' && isTrademeconfigured) {
-    // Motors/vehicles search
-    candidates = await searchTrademeMotors({ query, priceMax: brief.priceMax })
-  } else if (isTrademeconfigured) {
-    // General Trade Me search for retail, grocery, electronics, etc.
-    candidates = await searchTrademe({ query, priceMax: brief.priceMax })
+    if (candidates.length) sources.push('amadeus')
   } else {
-    // Fallback: internal product catalogue (stub data)
-    const { data: products } = await supabase
-      .from('products')
-      .select('*, sellers(trust_tier, business_name)')
-      .ilike('name', `%${query}%`)
-      .eq('stock_available', true)
-      .lte('price', brief.priceMax ?? 99999)
-      .limit(20)
-    candidates = products ?? []
+    // Run all configured adapters in parallel — Trade Me (NZ), eBay (global), Brave (web)
+    const isVehicle = brief.category === 'marketplace'
+
+    const [tmResult, ebayResult, webResult] = await Promise.allSettled([
+      isTrademeconfigured
+        ? (isVehicle
+          ? searchTrademeMotors({ query, priceMax: brief.priceMax })
+          : searchTrademe({ query, priceMax: brief.priceMax }))
+        : Promise.resolve([]),
+
+      isEbayConfigured
+        ? searchEbay({ query, priceMax: brief.priceMax ?? undefined })
+        : Promise.resolve([]),
+
+      isWebSearchConfigured
+        ? searchWeb({ query, priceMax: brief.priceMax ?? undefined })
+        : Promise.resolve([]),
+    ])
+
+    if (tmResult.status === 'fulfilled' && tmResult.value.length) {
+      candidates.push(...tmResult.value); sources.push('trademe')
+    }
+    if (ebayResult.status === 'fulfilled' && ebayResult.value.length) {
+      candidates.push(...ebayResult.value); sources.push('ebay')
+    }
+    if (webResult.status === 'fulfilled' && webResult.value.length) {
+      candidates.push(...webResult.value); sources.push('web')
+    }
+
+    // Last resort: internal stub catalogue
+    if (candidates.length === 0) {
+      const { data: products } = await supabase
+        .from('products')
+        .select('*, sellers(trust_tier, business_name)')
+        .ilike('name', `%${query}%`)
+        .eq('stock_available', true)
+        .lte('price', brief.priceMax ?? 99999)
+        .limit(20)
+      candidates = products ?? []
+      if (candidates.length) sources.push('internal')
+    }
   }
 
-  // Load user preferences for AI ranking
+  // Load user preferences for personalised AI ranking
   const { data: preferences } = await supabase
     .from('preferences')
     .select('category, positive_signals, negative_signals')
@@ -75,7 +106,7 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
 
   await supabase
     .from('searches')
-    .update({ results_shown: ranked.slice(0, 3) })
+    .update({ results_shown: ranked.slice(0, 10) })
     .eq('id', searchId)
 
   const results = ranked.map((r, i) => ({
@@ -83,5 +114,5 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
     aiSummary: summaries[String(i)],
   }))
 
-  return c.json({ results, total: ranked.length, source: isTrademeconfigured ? 'trademe' : 'internal' })
+  return c.json({ results, total: ranked.length, sources })
 })

@@ -17,7 +17,7 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
 
   // Dev-only: accept a fixed test token so curl/Postman testing works without a real Supabase session
   if (DEV_BYPASS && jwt === 'dev-test-token') {
-    c.set('userId', '00000000-0000-0000-0000-000000000001')
+    c.set('userId', 'dc4b0d2e-ff4b-4586-b070-8bc034502082') // henrypeti.dev@gmail.com
     c.set('userJwt', jwt)
     await next()
     return

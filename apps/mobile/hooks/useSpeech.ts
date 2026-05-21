@@ -1,7 +1,8 @@
 import { useState, useCallback, useRef } from 'react'
 import { Audio } from 'expo-av'
-import { AccessibilityInfo, Platform } from 'react-native'
+import { Platform } from 'react-native'
 import * as Haptics from 'expo-haptics'
+import { useTTS } from './useTTS'
 
 export type SpeechState = 'idle' | 'listening' | 'processing' | 'error'
 
@@ -12,6 +13,7 @@ export function useSpeech(onResult: (text: string) => void) {
   const [partialResult, setPartialResult] = useState('')
   const [error, setError] = useState<string | null>(null)
   const recordingRef = useRef<Audio.Recording | null>(null)
+  const { speak } = useTTS()
 
   const startListening = useCallback(async () => {
     if (Platform.OS === 'web') {
@@ -37,7 +39,7 @@ export function useSpeech(onResult: (text: string) => void) {
 
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
       setState('listening')
-      AccessibilityInfo.announceForAccessibility('Listening. Speak your request now.')
+      speak('Listening')
 
       const { recording } = await Audio.Recording.createAsync(
         Audio.RecordingOptionsPresets.HIGH_QUALITY
@@ -86,9 +88,10 @@ export function useSpeech(onResult: (text: string) => void) {
 
       if (transcript?.trim()) {
         setPartialResult(transcript)
+        speak(`Got it. Searching for ${transcript}`)
         onResult(transcript.trim())
-        AccessibilityInfo.announceForAccessibility(`Heard: ${transcript}`)
       } else {
+        speak("Didn't catch that — try again", 'high')
         setError("Didn't catch that — try again")
         setState('error')
         return
@@ -100,7 +103,7 @@ export function useSpeech(onResult: (text: string) => void) {
       const msg = err instanceof Error ? err.message : 'Transcription failed'
       setError(msg)
       setState('error')
-      AccessibilityInfo.announceForAccessibility('Voice search failed. Please try again or type your request.')
+      speak('Voice search failed. Please try again or type your request.', 'high')
     }
   }, [onResult])
 

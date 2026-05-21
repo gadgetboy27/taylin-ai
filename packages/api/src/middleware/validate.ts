@@ -25,7 +25,14 @@ export const signalSchema = z.object({
   checkIntervalHours: z.number().int().min(1).max(24).default(4),
 })
 
+export const feedbackSchema = z.object({
+  searchId: z.string().uuid(),
+  resultIndex: z.number().int().min(0).max(49),
+  action: z.enum(['like', 'dislike', 'skip']),
+})
+
 export const validateIntent = zValidator('json', intentSchema)
 export const validateOrder = zValidator('json', orderSchema)
 export const validateToken = zValidator('json', tokenSchema)
 export const validateSignal = zValidator('json', signalSchema)
+export const validateFeedback = zValidator('json', feedbackSchema)

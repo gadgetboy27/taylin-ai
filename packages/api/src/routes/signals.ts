@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { supabase } from '../lib/supabase.js'
-import { validateSignal } from '../middleware/validate.js'
+import { validateSignal, validateFeedback } from '../middleware/validate.js'
 import { searchFlights } from '../lib/amadeus.js'
+import { recordSignal } from '../lib/preferences.js'
 
 export const signalsRoute = new Hono()
 
@@ -25,6 +26,32 @@ signalsRoute.post('/', validateSignal, async (c) => {
 
   if (error || !data) return c.json({ error: 'Failed to create monitor' }, 500)
   return c.json({ monitorId: data.id }, 201)
+})
+
+// POST /signals/feedback — like / dislike / skip on a search result
+signalsRoute.post('/feedback', validateFeedback, async (c) => {
+  const userId = c.get('userId')
+  const { searchId, resultIndex, action } = c.req.valid('json')
+
+  const { data: search } = await supabase
+    .from('searches')
+    .select('category, results_shown')
+    .eq('id', searchId)
+    .eq('user_id', userId)
+    .single()
+
+  if (!search) return c.json({ error: 'Search not found' }, 404)
+
+  const results = (search.results_shown ?? []) as unknown[]
+  const product = results[resultIndex]
+  if (!product) return c.json({ error: 'Result index out of range' }, 400)
+
+  // Fire and forget — don't block the response on the Haiku extraction call
+  recordSignal(userId, search.category, product, action).catch((err) =>
+    console.error('[preferences] recordSignal failed:', err)
+  )
+
+  return c.json({ recorded: true })
 })
 
 // List active monitors for the user

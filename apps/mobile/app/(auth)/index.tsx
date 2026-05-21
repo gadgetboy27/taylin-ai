@@ -80,9 +80,8 @@ export default function SignInScreen() {
       })
       const data = await res.json() as {
         verified?: boolean
-        email?: string
-        token?: string
-        needsEmail?: boolean
+        email: string
+        token: string
         error?: string
       }
 
@@ -91,25 +90,17 @@ export default function SignInScreen() {
         return
       }
 
-      if (data.needsEmail) {
-        // New user — for now sign them in via email prompt (future: collect email inline)
-        setError('Account not found for this number. Sign in with email first to link your phone.')
+      // Exchange the admin-issued token for a real Supabase session
+      const { error: supaErr } = await supabase.auth.verifyOtp({
+        email: data.email,
+        token: data.token,
+        type: 'email',
+      })
+      if (supaErr) {
+        setError(supaErr.message)
         return
       }
-
-      // Exchange the admin-issued token for a real Supabase session
-      if (data.email && data.token) {
-        const { error: supaErr } = await supabase.auth.verifyOtp({
-          email: data.email,
-          token: data.token,
-          type: 'email',
-        })
-        if (supaErr) {
-          setError(supaErr.message)
-          return
-        }
-        // _layout.tsx auth listener handles navigation to (tabs)
-      }
+      // _layout.tsx auth listener handles navigation to (tabs)
     } catch {
       setError('Could not reach the server. Is the API running?')
     } finally {

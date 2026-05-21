@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react'
+import React, { useCallback, useEffect, useRef } from 'react'
 import {
   View,
   TextInput,
@@ -12,6 +12,7 @@ import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/context/ThemeContext'
 import { useSpeech } from '@/hooks/useSpeech'
+import { useVoice } from '@/context/VoiceContext'
 import { MIN_TOUCH_TARGET } from '@/lib/accessibility'
 import { floatShadow } from '@/lib/styles'
 
@@ -44,6 +45,22 @@ export function PromptBar({
 
   const { partialResult, startListening, stopListening, isListening, isProcessing } =
     useSpeech(handleSpeechResult)
+
+  // Auto-start recording when wake word "Taylin" fires
+  const { wakeWordCount, wakeWordState } = useVoice()
+  const prevWakeCount = useRef(0)
+  useEffect(() => {
+    if (wakeWordCount > prevWakeCount.current) {
+      prevWakeCount.current = wakeWordCount
+      if (!isListening) {
+        inputRef.current?.blur()
+        startListening()
+      }
+    }
+  }, [wakeWordCount, isListening, startListening])
+
+  const isWakeListening = wakeWordState === 'listening'
+  const isWakeDetected  = wakeWordState === 'detected'
 
   const handleMicPress = useCallback(() => {
     if (isListening) {
@@ -83,18 +100,26 @@ export function PromptBar({
       />
 
       <Pressable
-        style={[styles.iconBtn, isListening && { backgroundColor: c.micActive }]}
+        style={[
+          styles.iconBtn,
+          isListening && { backgroundColor: c.micActive },
+          isWakeDetected && { backgroundColor: c.primary },
+        ]}
         onPress={handleMicPress}
-        accessibilityLabel={isListening ? 'Stop listening' : 'Start voice input'}
+        accessibilityLabel={isListening ? 'Stop listening' : 'Start voice input. Or say Taylin to activate hands-free.'}
         accessibilityRole="button"
         accessibilityState={{ selected: isListening }}
         hitSlop={8}
       >
         <Ionicons
-          name={isListening ? 'mic' : 'mic-outline'}
+          name={isListening || isWakeDetected ? 'mic' : 'mic-outline'}
           size={22}
-          color={isListening ? '#fff' : c.micInactive}
+          color={isListening || isWakeDetected ? '#fff' : c.micInactive}
         />
+        {/* Wake word active dot — shows when Porcupine is passively listening */}
+        {isWakeListening && !isListening && (
+          <View style={styles.wakeWordDot} />
+        )}
       </Pressable>
 
       <Pressable
@@ -175,6 +200,15 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
     },
     submitBtnDisabled: {
       opacity: 0.35,
+    },
+    wakeWordDot: {
+      position: 'absolute',
+      top: 6,
+      right: 6,
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: '#22c55e', // green — always listening
     },
   })
 }

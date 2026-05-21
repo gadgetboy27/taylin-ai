@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import * as SplashScreen from 'expo-splash-screen'
 import { ThemeProvider } from '@/context/ThemeContext'
+import { VoiceProvider } from '@/context/VoiceContext'
 import { supabase } from '@/lib/supabase'
 
 SplashScreen.preventAutoHideAsync()
@@ -61,14 +62,16 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="result/[searchId]" options={{ presentation: 'card' }} />
-            <Stack.Screen name="result/approve" options={{ presentation: 'modal' }} />
-            <Stack.Screen name="seller/index" />
-            <Stack.Screen name="seller/apply" />
-          </Stack>
+          <VoiceProvider>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="result/[searchId]" options={{ presentation: 'card' }} />
+              <Stack.Screen name="result/approve" options={{ presentation: 'modal' }} />
+              <Stack.Screen name="seller/index" />
+              <Stack.Screen name="seller/apply" />
+            </Stack>
+          </VoiceProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

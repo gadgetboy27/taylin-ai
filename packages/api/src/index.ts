@@ -13,6 +13,7 @@ import { preferencesRoute } from './routes/preferences.js'
 import { signalsRoute } from './routes/signals.js'
 import { voiceRoute } from './routes/voice.js'
 import { authRoute } from './routes/auth.js'
+import { researchRoute } from './routes/research.js'
 import { authMiddleware } from './middleware/auth.js'
 import { rateLimitMiddleware } from './middleware/rateLimit.js'
 
@@ -66,6 +67,7 @@ app.route('/preferences', preferencesRoute)
 app.route('/signals', signalsRoute)
 app.route('/voice', voiceRoute)
 app.route('/auth', authRoute)
+app.route('/research', researchRoute)
 
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.notFound((c) => c.json({ error: 'Not found' }, 404))

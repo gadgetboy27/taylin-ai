@@ -33,9 +33,9 @@ intentRoute.post('/', validateIntent, async (c) => {
 
   const brief = await parseIntent(prompt, preferences, spendLimit)
 
-  // Persist the search record (RLS: user's own data only)
-  const userClient = createUserClient(jwt)
-  const { data: search, error } = await userClient
+  // Use service client in dev (dev-test-token isn't a real Supabase JWT, so RLS rejects it)
+  const insertClient = jwt === 'dev-test-token' ? supabase : createUserClient(jwt)
+  const { data: search, error } = await insertClient
     .from('searches')
     .insert({
       user_id: userId,
@@ -47,6 +47,7 @@ intentRoute.post('/', validateIntent, async (c) => {
     .single()
 
   if (error || !search) {
+    console.error('[intent] insert failed:', error?.message)
     return c.json({ error: 'Failed to save search' }, 500)
   }
 

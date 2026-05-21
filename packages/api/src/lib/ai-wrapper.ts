@@ -97,7 +97,7 @@ async function parseIntentFallback(
   if (!isConfigured) return stubBrief(rawPrompt)
 
   const message = await anthropic.messages.create({
-    model: 'claude-haiku-4-5',
+    model: 'claude-haiku-4-5-20251001',
     max_tokens: 500,
     system: 'You are an expert purchasing agent. Always respond with valid JSON only.',
     messages: [{
@@ -124,23 +124,22 @@ export async function rankResults(
   if (candidates.length === 0) return { ranked: [], summaries: {} }
   if (!isConfigured) return { ranked: candidates.slice(0, 3), summaries: {} }
 
+  const items = candidates.map((c, i) => ({ index: i, ...(c as object) }))
+
   const message = await anthropic.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 1000,
-    system: 'You are a product ranking expert. Return only valid JSON.',
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 2000,
+    system: 'You are a product ranking expert. Return only valid JSON, no markdown.',
     messages: [{
       role: 'user',
-      content: `Rank these products for this buyer.
+      content: `Rank these ${items.length} results best-to-worst for this buyer. Write one punchy sentence per result.
 
-Brief: ${JSON.stringify(brief)}
-Preferences: ${JSON.stringify(preferences)}
-Products: ${JSON.stringify(candidates.map((c, i) => ({ index: i, ...(c as object) })))}
+BUYER BRIEF: ${JSON.stringify(brief)}
+PREFERENCES: ${JSON.stringify(preferences)}
+RESULTS: ${JSON.stringify(items)}
 
-Return JSON:
-{
-  "rankedIndices": [0, 2, 1],
-  "summaries": { "0": "One sentence why this matches" }
-}`,
+Return this exact JSON shape (summaries keys = rank position, 0 = best):
+{"rankedIndices":[1,0,2],"summaries":{"0":"Why rank-1 result is best","1":"Why rank-2","2":"Why rank-3"}}`,
     }],
   })
 
@@ -148,8 +147,15 @@ Return JSON:
   const parsed = parseJsonFromText<{ rankedIndices: number[]; summaries: Record<string, string> }>(
     text, { rankedIndices: [], summaries: {} }
   )
-  if (!parsed.rankedIndices.length) return { ranked: candidates.slice(0, 3), summaries: {} }
-  const ranked = (parsed.rankedIndices ?? []).map((i) => candidates[i]).filter(Boolean).slice(0, 10)
+
+  // Fallback: return in original order with generic summaries derived from title
+  if (!parsed.rankedIndices.length) {
+    const fallbackSummaries: Record<string, string> = {}
+    candidates.slice(0, 10).forEach((_, i) => { fallbackSummaries[String(i)] = 'Potential match — tap to view' })
+    return { ranked: candidates.slice(0, 10), summaries: fallbackSummaries }
+  }
+
+  const ranked = parsed.rankedIndices.map((i) => candidates[i]).filter(Boolean).slice(0, 10)
   return { ranked, summaries: parsed.summaries ?? {} }
 }
 

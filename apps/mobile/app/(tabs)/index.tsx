@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import {
   View,
   Text,
@@ -7,13 +7,13 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  AccessibilityInfo,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
 import { usePreferences } from '@/hooks/usePreferences'
 import { useSearch } from '@/hooks/useSearch'
+import { useVoice } from '@/context/VoiceContext'
 import { PromptBar } from '@/components/PromptBar'
 import { PreferencePills } from '@/components/PreferencePills'
 import { ThemeSelector } from '@/components/ThemeSelector'
@@ -24,22 +24,30 @@ export default function PromptScreen() {
   const [prompt, setPrompt] = useState('')
   const { preferences, recentSearches } = usePreferences()
   const { startSearch, status } = useSearch()
+  const { startWakeWord } = useVoice()
+
+  // Start passively listening for "Taylin" as soon as the home screen mounts
+  useEffect(() => {
+    startWakeWord()
+  }, [startWakeWord])
 
   const isSearching = status === 'parsing' || status === 'searching'
+
+  const { speak } = useVoice()
 
   const handleSubmit = useCallback(async (text: string) => {
     const trimmed = text.trim()
     if (!trimmed || isSearching) return
 
-    AccessibilityInfo.announceForAccessibility(`Searching for ${trimmed}. Please wait.`)
+    speak(`Searching for ${trimmed}. Please wait.`)
 
     try {
       const searchId = await startSearch(trimmed)
       router.push(`/result/${searchId}`)
     } catch {
-      AccessibilityInfo.announceForAccessibility('Search failed. Please try again.')
+      speak('Search failed. Please try again.', 'high')
     }
-  }, [isSearching, startSearch])
+  }, [isSearching, startSearch, speak])
 
   const styles = makeStyles(c)
 
