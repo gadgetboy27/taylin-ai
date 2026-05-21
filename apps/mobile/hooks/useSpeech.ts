@@ -3,6 +3,7 @@ import { Audio } from 'expo-av'
 import { Platform } from 'react-native'
 import * as Haptics from 'expo-haptics'
 import { useTTS } from './useTTS'
+import { supabase } from '@/lib/supabase'
 
 export type SpeechState = 'idle' | 'listening' | 'processing' | 'error'
 
@@ -77,8 +78,10 @@ export function useSpeech(onResult: (text: string) => void) {
         type: 'audio/m4a',
       } as unknown as Blob)
 
+      const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(`${API_URL}/voice/transcribe`, {
         method: 'POST',
+        headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
         body: formData,
       })
 
