@@ -9,7 +9,7 @@ export type Product = {
   id: string
   name: string
   description?: string
-  price: number
+  price?: number
   currency?: string
   images?: string[]
   seller_id: string
@@ -43,7 +43,7 @@ export function ResultCard({ product, rank }: ResultCardProps) {
   const accessLabel = [
     isTopPick ? 'Top pick:' : `Result ${rank}:`,
     product.name,
-    `$${product.price.toFixed(2)} ${currency}.`,
+    product.price != null ? `$${product.price.toFixed(2)} ${currency}.` : 'Price on request.',
     deliveryText + '.',
     product.aiSummary ?? '',
   ]
@@ -63,7 +63,7 @@ export function ResultCard({ product, rank }: ResultCardProps) {
           params: {
             searchId: product.searchId,
             productId: product.id,
-            amount: String(product.price),
+            amount: product.price != null ? String(product.price) : '0',
             sellerTier: String(tier),
             productName: product.name,
           },
@@ -108,7 +108,9 @@ export function ResultCard({ product, rank }: ResultCardProps) {
 
           <View style={styles.footer}>
             <View>
-              <Text style={styles.price}>${product.price.toFixed(2)}</Text>
+              <Text style={styles.price}>
+                {product.price != null ? `$${product.price.toFixed(2)}` : 'Price TBC'}
+              </Text>
               <Text style={styles.delivery}>{deliveryText}</Text>
             </View>
             <EscrowBadge tier={tier} compact />
