@@ -17,7 +17,7 @@ export type Product = {
   seller?: { name: string; rating: number }
   condition?: string
   url?: string
-  source?: 'ebay' | 'trademe' | 'web' | 'amadeus'
+  source?: 'ebay' | 'trademe' | 'web' | 'amadeus' | 'aliexpress'
   delivery_days_min?: number
   delivery_days_max?: number
   aiSummary?: string
@@ -30,6 +30,7 @@ const SOURCE_LABEL: Record<string, string> = {
   trademe: 'Trade Me',
   web: 'Web',
   amadeus: 'Flights',
+  aliexpress: 'AliExpress',
 }
 
 interface ResultCardProps {

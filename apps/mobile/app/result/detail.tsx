@@ -25,6 +25,7 @@ const SOURCE_LABEL: Record<string, string> = {
   trademe: 'Trade Me',
   web: 'Web',
   amadeus: 'Flights',
+  aliexpress: 'AliExpress',
 }
 
 export default function ProductDetailScreen() {

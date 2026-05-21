@@ -7,6 +7,7 @@ import { searchFlights } from '../lib/amadeus.js'
 import { searchTrademe, searchTrademeMotors, isTrademeconfigured } from '../lib/trademe.js'
 import { searchEbay, isEbayConfigured } from '../lib/ebay.js'
 import { searchWeb, isWebSearchConfigured } from '../lib/web-search.js'
+import { searchAliexpress, isAliexpressConfigured } from '../lib/aliexpress.js'
 
 export const searchRoute = new Hono()
 
@@ -50,7 +51,7 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
     // Run all configured adapters in parallel — Trade Me (NZ), eBay (global), Brave (web)
     const isVehicle = brief.category === 'marketplace'
 
-    const [tmResult, ebayResult, webResult] = await Promise.allSettled([
+    const [tmResult, ebayResult, webResult, aliResult] = await Promise.allSettled([
       isTrademeconfigured
         ? (isVehicle
           ? searchTrademeMotors({ query, priceMax: brief.priceMax })
@@ -64,6 +65,10 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
       isWebSearchConfigured
         ? searchWeb({ query, priceMax: brief.priceMax ?? undefined })
         : Promise.resolve([]),
+
+      isAliexpressConfigured
+        ? searchAliexpress({ query, priceMin: brief.priceMin ?? undefined, priceMax: brief.priceMax ?? undefined })
+        : Promise.resolve([]),
     ])
 
     if (tmResult.status === 'fulfilled' && tmResult.value.length) {
@@ -74,6 +79,9 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
     }
     if (webResult.status === 'fulfilled' && webResult.value.length) {
       candidates.push(...webResult.value); sources.push('web')
+    }
+    if (aliResult.status === 'fulfilled' && aliResult.value.length) {
+      candidates.push(...aliResult.value); sources.push('aliexpress')
     }
 
     // Last resort: internal stub catalogue
