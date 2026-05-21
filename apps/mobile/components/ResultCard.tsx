@@ -1,9 +1,10 @@
 import React from 'react'
-import { View, Text, Pressable, Image, StyleSheet, Linking } from 'react-native'
+import { View, Text, Pressable, Image, StyleSheet } from 'react-native'
 import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
 import { EscrowBadge } from './EscrowBadge'
 import { cardShadow } from '@/lib/styles'
+import { storeProduct } from '@/lib/product-store'
 
 export type Product = {
   id: string
@@ -13,6 +14,8 @@ export type Product = {
   currency?: string
   images?: string[]
   seller_id?: string
+  seller?: { name: string; rating: number }
+  condition?: string
   url?: string
   source?: 'ebay' | 'trademe' | 'web' | 'amadeus'
   delivery_days_min?: number
@@ -63,20 +66,8 @@ export function ResultCard({ product, rank }: ResultCardProps) {
     .join(' ')
 
   const handlePress = () => {
-    if (isExternal && product.url) {
-      Linking.openURL(product.url)
-    } else {
-      router.push({
-        pathname: '/result/approve',
-        params: {
-          searchId: product.searchId,
-          productId: product.id,
-          amount: product.price != null ? String(product.price) : '0',
-          sellerTier: String(tier),
-          productName: product.name,
-        },
-      })
-    }
+    storeProduct(product)
+    router.push({ pathname: '/result/detail', params: { id: product.id } })
   }
 
   return (
@@ -88,7 +79,7 @@ export function ResultCard({ product, rank }: ResultCardProps) {
       ]}
       onPress={handlePress}
       accessibilityLabel={accessLabel}
-      accessibilityHint={isExternal ? `Opens ${sourceLabel} listing in browser` : 'Tap to review and approve this purchase'}
+      accessibilityHint="Tap to view product details"
       accessibilityRole="button"
     >
       {/* Top pick label */}

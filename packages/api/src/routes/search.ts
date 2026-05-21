@@ -109,10 +109,19 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
     .update({ results_shown: ranked.slice(0, 10) })
     .eq('id', searchId)
 
-  const results = ranked.map((r, i) => ({
-    ...(r as object),
-    aiSummary: summaries[String(i)],
-  }))
+  const results = ranked.map((r, i) => {
+    const raw = r as Record<string, unknown>
+    const extraImages = Array.isArray(raw.additionalImages) ? raw.additionalImages as string[] : []
+    const primaryImage = typeof raw.image === 'string' ? raw.image : undefined
+    return {
+      ...raw,
+      // normalise adapter field names to the mobile Product shape
+      name: raw.name ?? raw.title,
+      images: Array.isArray(raw.images) ? raw.images
+        : [primaryImage, ...extraImages].filter(Boolean),
+      aiSummary: summaries[String(i)],
+    }
+  })
 
   return c.json({ results, total: ranked.length, sources })
 })
