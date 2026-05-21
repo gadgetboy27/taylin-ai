@@ -33,25 +33,34 @@ export interface EbayResult {
   condition: string
   url: string
   image?: string
+  additionalImages: string[]
   seller: { name: string; rating: number }
   source: 'ebay'
 }
 
+function upscaleEbayImage(url?: string): string | undefined {
+  return url?.replace(/s-l\d+\.jpg/, 's-l500.jpg')
+}
+
 export async function searchEbay({
   query,
+  priceMin,
   priceMax,
   condition,
 }: {
   query: string
+  priceMin?: number
   priceMax?: number
   condition?: 'new' | 'used'
 }): Promise<EbayResult[]> {
   const token = await getToken()
 
-  const params = new URLSearchParams({ q: query, limit: '20', sort: 'price' })
+  const params = new URLSearchParams({ q: query, limit: '20', sort: 'bestMatch', fieldgroups: 'EXTENDED' })
 
   const filters: string[] = []
-  if (priceMax)              filters.push(`price:[..${priceMax}]`)
+  if (priceMin && priceMax)  filters.push(`price:[${priceMin}..${priceMax}]`)
+  else if (priceMin)         filters.push(`price:[${priceMin}..]`)
+  else if (priceMax)         filters.push(`price:[..${priceMax}]`)
   if (condition === 'new')   filters.push('conditionIds:{1000}')
   if (condition === 'used')  filters.push('conditionIds:{3000}')
   if (filters.length)        params.set('filter', filters.join(','))
@@ -72,7 +81,9 @@ export async function searchEbay({
       price: { value: string; currency: string }
       condition: string
       itemWebUrl: string
+      image?: { imageUrl: string }
       thumbnailImages?: Array<{ imageUrl: string }>
+      additionalImages?: Array<{ imageUrl: string }>
       seller: { username: string; feedbackScore: number; feedbackPercentage: string }
     }>
   }
@@ -84,7 +95,9 @@ export async function searchEbay({
     currency: item.price.currency,
     condition: item.condition ?? 'Unknown',
     url: item.itemWebUrl,
-    image: item.thumbnailImages?.[0]?.imageUrl,
+    // eBay URLs contain a size token (s-l225, s-l500, s-l1600) — bump to 500px
+    image: upscaleEbayImage(item.image?.imageUrl ?? item.thumbnailImages?.[0]?.imageUrl),
+    additionalImages: (item.additionalImages ?? []).map((i) => upscaleEbayImage(i.imageUrl)!).filter(Boolean),
     seller: { name: item.seller.username, rating: parseFloat(item.seller.feedbackPercentage ?? '0') },
     source: 'ebay' as const,
   }))

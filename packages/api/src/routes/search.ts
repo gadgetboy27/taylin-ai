@@ -58,7 +58,7 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
         : Promise.resolve([]),
 
       isEbayConfigured
-        ? searchEbay({ query, priceMax: brief.priceMax ?? undefined })
+        ? searchEbay({ query, priceMin: brief.priceMin ?? undefined, priceMax: brief.priceMax ?? undefined })
         : Promise.resolve([]),
 
       isWebSearchConfigured
