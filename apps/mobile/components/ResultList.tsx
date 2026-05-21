@@ -3,14 +3,17 @@ import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native'
 import { useTheme } from '@/context/ThemeContext'
 import { ResultCard, type Product } from './ResultCard'
 import { AgentNudge } from './AgentNudge'
+import { ResearchPanel } from './ResearchPanel'
 import { SEARCH_CONFIG } from '@/constants/models'
+import type { ResearchAnswer } from '@/lib/ai'
 
 interface ResultListProps {
   results: unknown[]
   searchId: string
+  research?: ResearchAnswer | null
 }
 
-export function ResultList({ results, searchId }: ResultListProps) {
+export function ResultList({ results, searchId, research }: ResultListProps) {
   const { theme } = useTheme()
   const c = theme.colors
   const [showAll, setShowAll] = useState(false)
@@ -31,6 +34,8 @@ export function ResultList({ results, searchId }: ResultListProps) {
 
   return (
     <ScrollView contentContainerStyle={styles.list}>
+      {research && <ResearchPanel answer={research} />}
+
       <Text style={styles.count} accessibilityLabel={`Showing top ${shown.length} of ${products.length} results`}>
         Top {shown.length} of {products.length}
       </Text>

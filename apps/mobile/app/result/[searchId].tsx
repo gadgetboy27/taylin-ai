@@ -1,34 +1,36 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, ActivityIndicator, AccessibilityInfo } from 'react-native'
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
 import { ResultList } from '@/components/ResultList'
-import { fetchResults } from '@/lib/ai'
+import { ResearchPanel } from '@/components/ResearchPanel'
+import { fetchResults, askResearch, type ResearchAnswer } from '@/lib/ai'
 
 export default function ResultsScreen() {
-  const { searchId } = useLocalSearchParams<{ searchId: string }>()
+  const { searchId, query } = useLocalSearchParams<{ searchId: string; query?: string }>()
   const { theme } = useTheme()
   const c = theme.colors
   const [results, setResults] = useState<unknown[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [research, setResearch] = useState<ResearchAnswer | null>(null)
   const styles = makeStyles(c)
 
   useEffect(() => {
     if (!searchId) return
+
     fetchResults(searchId)
-      .then((data) => {
-        setResults(data)
-        AccessibilityInfo.announceForAccessibility(
-          data.length === 0
-            ? 'No results found. Try a different search.'
-            : `Found ${data.length} result${data.length !== 1 ? 's' : ''}. Showing top 3.`
-        )
-      })
+      .then(setResults)
       .catch(() => setError('Search failed. Please try again.'))
       .finally(() => setLoading(false))
-  }, [searchId])
+
+    if (query) {
+      askResearch(query)
+        .then(setResearch)
+        .catch(() => {/* research is best-effort */})
+    }
+  }, [searchId, query])
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -53,7 +55,7 @@ export default function ResultsScreen() {
           <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : (
-        <ResultList results={results} searchId={searchId!} />
+        <ResultList results={results} searchId={searchId!} research={research} />
       )}
     </SafeAreaView>
   )

@@ -43,7 +43,7 @@ export default function PromptScreen() {
 
     try {
       const searchId = await startSearch(trimmed)
-      router.push(`/result/${searchId}`)
+      router.push({ pathname: '/result/[searchId]', params: { searchId, query: trimmed } })
     } catch {
       speak('Search failed. Please try again.', 'high')
     }

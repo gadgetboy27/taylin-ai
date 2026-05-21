@@ -2,6 +2,22 @@ import { supabase, isDevMode } from './supabase'
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000'
 
+export interface ResearchAnswer {
+  answer: string
+  followUps: string[]
+  sources: Array<{ title: string; url: string }>
+}
+
+export async function askResearch(query: string): Promise<ResearchAnswer> {
+  const res = await fetch(`${API_URL}/research`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  })
+  if (!res.ok) throw new Error(`Research failed: ${res.status}`)
+  return res.json()
+}
+
 // Dev mode stub products — shown when no backend is running
 const DEV_RESULTS = [
   {
