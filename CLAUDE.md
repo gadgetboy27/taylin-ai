@@ -101,5 +101,5 @@ Commands: `npm run mobile` · `npm run api` · `npm run typecheck` (runs both wo
 - **New tables must enable RLS in their own migration.** `009_rls_policies.sql` only covered the tables that existed then; `seller_applications` was added later and sat world-readable until `017` caught it.
 - Search adapters wired: Trade Me, eBay, Brave web, AliExpress, Amadeus (flights), plus internal sellers.
 - Keys present: Anthropic, Gemini, Brave (search + answers), eBay, Deepgram, TrackingMore. Still empty: Trade Me, Amadeus, NZBN, Twilio, Stripe, AliExpress.
-- `npm run typecheck` fails on 3 pre-existing API errors (`lib/deepgram.ts` Buffer→BodyInit, `lib/stripe.ts` stale `apiVersion`, `lib/trademe.ts` implicit any). Mobile is clean. Don't mistake these for something you broke.
+- `npm run typecheck` and `npm run build` are both clean — keep them that way. `packages/api`'s build script is bare `tsc`, so **a type error fails the Railway deploy**, not just the editor. Running locally via `tsx` will not tell you: `tsc` still emits `dist/` on error, so the only signal is the exit code.
 - `ADMIN_API_KEY` is unset, so every `/admin/*` request 401s. `middleware/admin.ts` is a static shared key, not a role system — there is no admin concept on `users` yet.

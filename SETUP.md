@@ -184,7 +184,7 @@ taylin-ai/
 
 ## Known issues
 
-- `npm run typecheck` fails with 3 pre-existing errors in `lib/deepgram.ts` (Buffer→BodyInit), `lib/stripe.ts` (stale `apiVersion` string), and `lib/trademe.ts` (implicit any index). The mobile workspace is clean.
+- `packages/api`'s build script is bare `tsc`, so any type error fails the Railway build step. `tsx` won't warn you — `tsc` emits `dist/` even on error, so check the exit code. `npm run typecheck` is currently clean.
 - `middleware/admin.ts` is a static shared key, not a role system — there's no admin concept on `users` yet. Replace before any real launch.
 - The `/research` rate limiter is in-memory and per-process; it needs a shared store if the API ever runs more than one instance.
 
