@@ -45,8 +45,11 @@ function buildOAuthHeader(method: string, url: string): string {
     oauth_signature: signature,
   }
 
-  const headerStr = Object.keys(headerParts)
-    .map((k) => `${encodeURIComponent(k)}="${encodeURIComponent(headerParts[k])}"`)
+  // Object.entries rather than keys + index: spreading oauthParams into an
+  // object literal drops the Record<string, string> index signature, so
+  // headerParts[k] is not indexable by an arbitrary string.
+  const headerStr = Object.entries(headerParts)
+    .map(([k, v]) => `${encodeURIComponent(k)}="${encodeURIComponent(v)}"`)
     .join(', ')
 
   return `OAuth ${headerStr}`

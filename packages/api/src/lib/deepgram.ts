@@ -23,7 +23,12 @@ export async function transcribeAudio(audioBuffer: Buffer, mimeType: string): Pr
       Authorization: `Token ${apiKey}`,
       'Content-Type': mimeType,
     },
-    body: audioBuffer,
+    // Node's Buffer is a Uint8Array at runtime, but @types/node types it as
+    // Buffer<ArrayBufferLike>, which fetch's BodyInit won't accept — BodyInit
+    // wants Uint8Array<ArrayBuffer> specifically. Re-wrapping satisfies the
+    // type without a cast; the copy is negligible next to the network round
+    // trip this is feeding.
+    body: new Uint8Array(audioBuffer),
   })
 
   if (!res.ok) {

@@ -7,7 +7,9 @@ if (!stripeKey) {
 }
 
 export const stripe = stripeKey
-  ? new Stripe(stripeKey, { apiVersion: '2024-11-20.acacia', typescript: true })
+  // Must match the API version the installed SDK is generated against —
+  // the type is a single literal, so a stale value fails the build.
+  ? new Stripe(stripeKey, { apiVersion: '2025-02-24.acacia', typescript: true })
   : null
 
 // Issue a single-use scoped card token for one transaction.
