@@ -13,25 +13,69 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useTheme } from '@/context/ThemeContext'
 import { ThemeSelector } from '@/components/ThemeSelector'
+import { GoogleSignin } from '@react-native-google-signin/google-signin'
 import { supabase } from '@/lib/supabase'
 import { cardShadow } from '@/lib/styles'
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001'
 
-type Step = 'phone' | 'code'
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID
+const googleConfigured = !!GOOGLE_WEB_CLIENT_ID
+
+// Configure once at module load rather than per-render. webClientId is the
+// audience the returned ID token is minted for, which is what Supabase
+// validates — iosClientId only identifies the app to Google on iOS.
+if (googleConfigured) {
+  GoogleSignin.configure({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
+  })
+}
+
+type Step = 'choose' | 'phone' | 'code'
 
 export default function SignInScreen() {
   const { theme } = useTheme()
   const c = theme.colors
   const styles = makeStyles(c)
 
-  const [step, setStep] = useState<Step>('phone')
+  // Falls straight through to the phone flow when Google isn't configured, so
+  // a missing client ID degrades to the old behaviour rather than a dead end.
+  const [step, setStep] = useState<Step>(googleConfigured ? 'choose' : 'phone')
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const codeRef = useRef<TextInputType>(null)
+
+  const signInWithGoogle = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      await GoogleSignin.hasPlayServices()
+      const result = await GoogleSignin.signIn()
+
+      // v16 returns a discriminated result — a cancel isn't a failure, so it
+      // shouldn't surface an error message.
+      if (result.type !== 'success') return
+
+      const idToken = result.data.idToken
+      if (!idToken) throw new Error('Google did not return an ID token')
+
+      const { error: supaErr } = await supabase.auth.signInWithIdToken({
+        provider: 'google',
+        token: idToken,
+      })
+      if (supaErr) throw supaErr
+      // _layout.tsx auth listener handles navigation to (tabs)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not sign in with Google')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   const sendCode = useCallback(async () => {
     const trimmed = phone.trim()
@@ -129,8 +173,47 @@ export default function SignInScreen() {
           <Text style={styles.tagline}>Find it. Verify it. Protect it.</Text>
 
           <View style={[styles.card, cardShadow]}>
-            {step === 'phone' ? (
+            {step === 'choose' ? (
               <>
+                <Text style={styles.cardTitle}>Sign in</Text>
+                <Text style={styles.cardSub}>One tap — no code to type.</Text>
+
+                {error && <Text style={styles.errorText}>{error}</Text>}
+
+                <Pressable
+                  style={[styles.googleBtn, loading && styles.btnDisabled]}
+                  onPress={signInWithGoogle}
+                  disabled={loading}
+                  accessibilityRole="button"
+                  accessibilityLabel="Continue with Google"
+                >
+                  {loading
+                    ? <ActivityIndicator color={c.text} />
+                    : <Text style={styles.googleBtnText}>Continue with Google</Text>
+                  }
+                </Pressable>
+
+                <Pressable
+                  style={styles.altRow}
+                  onPress={() => { setStep('phone'); setError(null) }}
+                  disabled={loading}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.altText}>Use a phone number instead</Text>
+                </Pressable>
+              </>
+            ) : step === 'phone' ? (
+              <>
+                {googleConfigured && (
+                  <Pressable
+                    onPress={() => { setStep('choose'); setError(null) }}
+                    style={styles.backRow}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.backText}>← Back</Text>
+                  </Pressable>
+                )}
+
                 <Text style={styles.cardTitle}>Sign in</Text>
                 <Text style={styles.cardSub}>Enter your mobile number — we'll text you a code.</Text>
 
@@ -259,6 +342,23 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
     btn: { backgroundColor: c.primary, borderRadius: 14, height: 52, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
     btnDisabled: { opacity: 0.4 },
     btnText: { color: c.textOnPrimary, fontSize: 16, fontWeight: '700' },
+
+    // Neutral surface rather than c.primary — Google's branding guidelines
+    // require their button keep its own light/dark treatment, not the app's
+    // accent colour.
+    googleBtn: {
+      backgroundColor: c.surface,
+      borderWidth: 1.5,
+      borderColor: c.glassBorder,
+      borderRadius: 14,
+      height: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 4,
+    },
+    googleBtnText: { color: c.text, fontSize: 16, fontWeight: '600' },
+    altRow: { alignItems: 'center', paddingVertical: 8 },
+    altText: { fontSize: 13, color: c.textMuted },
 
     errorText: { fontSize: 13, color: c.error, textAlign: 'center' },
     backRow: { marginBottom: 4 },
