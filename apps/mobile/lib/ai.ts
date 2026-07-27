@@ -11,7 +11,7 @@ export interface ResearchAnswer {
 export async function askResearch(query: string): Promise<ResearchAnswer> {
   const res = await fetch(`${API_URL}/research`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await authHeaders(),
     body: JSON.stringify({ query }),
   })
   if (!res.ok) throw new Error(`Research failed: ${res.status}`)
