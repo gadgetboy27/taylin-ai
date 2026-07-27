@@ -141,6 +141,27 @@ redFlags: note things like: vague product descriptions, NZBN that doesn't match 
 
 // ── Main conductor function ───────────────────────────────────────────────────
 
+/**
+ * The stage list says "work through these in order, but naturally" and tells
+ * Taylor to push for specifics — with no budget, so it will happily keep
+ * probing forever. Interviews were running past 30 messages still asking
+ * questions, which is both a bad experience and progressively slower, since the
+ * whole transcript is re-sent every turn.
+ *
+ * The advertised length is "about 5 minutes", so this holds it near that.
+ */
+function pacingDirective(history: InterviewMessage[]): string {
+  const answers = history.filter((m) => m.role === 'seller').length
+
+  if (answers >= 10) {
+    return `\n\nPACING: The seller has answered ${answers} questions — well past the 5 minutes this was sold as. Move to the "complete" stage in THIS reply: summarise what you have, give them their tier, and set "complete": true. Ask nothing further, and do not apologise for the length.`
+  }
+  if (answers >= 6) {
+    return `\n\nPACING: ${answers} questions answered. Cover any remaining stages in a single question each and aim to reach "complete" within about three more turns. Prefer finishing with a gap in extractedData over asking another follow-up.`
+  }
+  return ''
+}
+
 export async function conductInterview(
   history: InterviewMessage[],
   verificationContext: Record<string, VerificationResult>
@@ -167,12 +188,24 @@ export async function conductInterview(
     })
   }
 
+  // The prompt requires every extractedData field to be re-emitted each turn, so
+  // the JSON grows as the seller fills fields with prose (differentiation and
+  // sourcingDetails especially). At 600 the reply started getting cut mid-JSON,
+  // which parseJsonFromText can't recover — it falls back to stripping braces
+  // off the raw text, producing the half-sentence Taylor the seller sees.
   const result = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
-    max_tokens: 600,
-    system: SYSTEM_PROMPT,
+    max_tokens: 2000,
+    system: SYSTEM_PROMPT + pacingDirective(history),
     messages,
   })
+
+  // Truncation must not stay silent: the fallback below emits something that
+  // reads like a real reply, so without this the only symptom is Taylor
+  // talking nonsense.
+  if (result.stop_reason === 'max_tokens') {
+    console.error('[interview] response hit max_tokens — reply will be truncated JSON')
+  }
 
   const raw = result.content[0].type === 'text' ? result.content[0].text : '{}'
   const fallback: TaylorResponse = {
