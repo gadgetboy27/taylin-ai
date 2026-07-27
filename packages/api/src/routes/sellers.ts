@@ -103,13 +103,19 @@ sellersRoute.post('/catalogue/resync', async (c) => {
 sellersRoute.post('/apply/start', async (c) => {
   const userId = c.get('userId')
 
-  // Check if they already have an in-progress application
+  // Check if they already have an in-progress application.
+  // maybeSingle + limit(1) rather than single(): single() errors when more than
+  // one row matches, which would null `existing` and silently start a *third*
+  // application, orphaning the conversation this resume exists to protect.
+  // Newest wins if duplicates ever appear.
   const { data: existing } = await supabase
     .from('seller_applications')
     .select('id, status, conversation')
     .eq('user_id', userId)
     .eq('status', 'in_progress')
-    .single()
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
   if (existing) {
     const conv = existing.conversation as InterviewMessage[]
