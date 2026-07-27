@@ -53,6 +53,12 @@
           "microphonePermission": "taylin.ai needs microphone access for voice search.",
           "speechRecognitionPermission": "taylin.ai needs speech recognition for voice search."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png"
+        }
       ]
     ],
     "experiments": {

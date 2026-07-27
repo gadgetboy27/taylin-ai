@@ -61,14 +61,24 @@ export default function PromptScreen() {
         {/* ── Minimal top bar ───────────────────────────────────────── */}
         <View style={styles.topRow}>
           <ThemeSelector />
-          <Pressable
-            style={styles.balanceChip}
-            onPress={() => router.push('/wallet')}
-            accessibilityLabel="Wallet balance. Tap to manage your wallet."
-            accessibilityRole="button"
-          >
-            <Text style={styles.balanceText}>$842.50</Text>
-          </Pressable>
+          <View style={styles.topRowRight}>
+            <Pressable
+              style={styles.dealsChip}
+              onPress={() => router.push('/deals')}
+              accessibilityLabel="Local deals. Tap to see time-limited offers near you."
+              accessibilityRole="button"
+            >
+              <Text style={styles.dealsText}>Deals</Text>
+            </Pressable>
+            <Pressable
+              style={styles.balanceChip}
+              onPress={() => router.push('/wallet')}
+              accessibilityLabel="Wallet balance. Tap to manage your wallet."
+              accessibilityRole="button"
+            >
+              <Text style={styles.balanceText}>$842.50</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* ── Scrollable content area — blurs under the PromptBar ───── */}
@@ -160,6 +170,26 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
       paddingHorizontal: 20,
       paddingTop: 10,
       paddingBottom: 8,
+    },
+    topRowRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    dealsChip: {
+      backgroundColor: c.surface,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 20,
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      minHeight: 36,
+      justifyContent: 'center',
+    },
+    dealsText: {
+      color: c.accent,
+      fontSize: 14,
+      fontWeight: '600',
     },
     balanceChip: {
       backgroundColor: c.surface,

@@ -116,6 +116,10 @@ deliveryByDate, qualitySignals, negativeConstraints, urgency, isGift, giftContex
   return parseJsonFromText(text, stubBrief(rawPrompt))
 }
 
+// Returns the FULL relevance-ordered candidate list (not truncated) —
+// callers decide the final result count. This matters for
+// lib/ranking-fairness.ts, which needs to see candidates beyond the top 10
+// to find local sellers worth floor-promoting.
 export async function rankResults(
   brief: IntentBrief,
   candidates: unknown[],
@@ -151,12 +155,79 @@ Return this exact JSON shape (summaries keys = rank position, 0 = best):
   // Fallback: return in original order with generic summaries derived from title
   if (!parsed.rankedIndices.length) {
     const fallbackSummaries: Record<string, string> = {}
-    candidates.slice(0, 10).forEach((_, i) => { fallbackSummaries[String(i)] = 'Potential match — tap to view' })
-    return { ranked: candidates.slice(0, 10), summaries: fallbackSummaries }
+    candidates.forEach((_, i) => { fallbackSummaries[String(i)] = 'Potential match — tap to view' })
+    return { ranked: candidates, summaries: fallbackSummaries }
   }
 
-  const ranked = parsed.rankedIndices.map((i) => candidates[i]).filter(Boolean).slice(0, 10)
+  const ranked = parsed.rankedIndices.map((i) => candidates[i]).filter(Boolean)
   return { ranked, summaries: parsed.summaries ?? {} }
+}
+
+// Input shape mirrors apps/mobile/lib/patterns/boundary.ts's PatternSummary
+// exactly (minus its client-only type brand, which never serializes). This
+// is the only personal-behavior data this function — or any AI call in this
+// file — ever sees for the proactive-suggestion flow: a de-identified
+// pattern shape, never raw history.
+export type PatternSummaryInput = {
+  pattern_type: 'recurring_purchase' | 'biometric_deviation'
+  category: string
+  day_of_week: string
+  time_window: string
+  confidence: number
+  streak_or_confirmations: number
+}
+
+export async function phraseSuggestion(pattern: PatternSummaryInput): Promise<string> {
+  if (!isConfigured) {
+    return pattern.pattern_type === 'biometric_deviation'
+      ? "Noticing something — everything okay?"
+      : `Want to try something new instead of the usual ${pattern.category}?`
+  }
+
+  const message = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 150,
+    system: 'You write one short, warm, conversational sentence for a proactive in-app suggestion. Never mention data, patterns, confidence, or tracking — just talk like a friend who noticed something. No quotes around the output.',
+    messages: [{
+      role: 'user',
+      content: `Pattern: ${JSON.stringify(pattern)}\n\nIf this is a recurring_purchase, gently offer a fresh local alternative in the same category. If it's a biometric_deviation, gently check in on how the person is doing. One sentence.`,
+    }],
+  })
+
+  const text = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+  return text || `Noticed something about your ${pattern.category} routine — want a suggestion?`
+}
+
+export type ExtractedProduct = {
+  name: string
+  price: number | null
+  description: string | null
+  category: string | null
+}
+
+// Best-effort structured extraction from a single page's visible text —
+// used by lib/catalogue-import.ts. Returns an empty array rather than
+// guessing when the page clearly isn't a product listing (a contact page,
+// an about page, etc).
+export async function extractProducts(pageText: string, sourceUrl: string): Promise<ExtractedProduct[]> {
+  if (!isConfigured) return []
+
+  // Page text can be long; keep the prompt bounded rather than sending an
+  // entire scraped page verbatim.
+  const truncated = pageText.slice(0, 12000)
+
+  const message = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 2000,
+    system: 'You extract product listings from scraped web page text. Return only valid JSON, no markdown. If the page has no products (e.g. it\'s a contact/about/homepage with no listings), return an empty array.',
+    messages: [{
+      role: 'user',
+      content: `Source URL: ${sourceUrl}\n\nPage text:\n${truncated}\n\nReturn a JSON array of products found on this page: [{"name": "...", "price": <number or null>, "description": "..." or null, "category": "..." or null}]`,
+    }],
+  })
+
+  const text = message.content[0].type === 'text' ? message.content[0].text : '[]'
+  return parseJsonFromText<ExtractedProduct[]>(text, [])
 }
 
 export function generateNudge(totalResults: number, shownCount: number, category: string): string {

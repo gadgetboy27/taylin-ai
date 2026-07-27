@@ -6,6 +6,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import * as SplashScreen from 'expo-splash-screen'
 import { ThemeProvider } from '@/context/ThemeContext'
 import { VoiceProvider } from '@/context/VoiceContext'
+import { NotificationsProvider } from '@/context/NotificationsContext'
+import { PatternProvider } from '@/context/PatternContext'
+import { PatternConfirmPrompt } from '@/components/PatternConfirmPrompt'
 import { supabase } from '@/lib/supabase'
 
 SplashScreen.preventAutoHideAsync()
@@ -63,14 +66,22 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider>
           <VoiceProvider>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="result/[searchId]" options={{ presentation: 'card' }} />
-              <Stack.Screen name="result/approve" options={{ presentation: 'modal' }} />
-              <Stack.Screen name="seller/index" />
-              <Stack.Screen name="seller/apply" />
-            </Stack>
+            <NotificationsProvider>
+              <PatternProvider>
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="(auth)" />
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="result/[searchId]" options={{ presentation: 'card' }} />
+                  <Stack.Screen name="result/approve" options={{ presentation: 'modal' }} />
+                  <Stack.Screen name="seller/index" />
+                  <Stack.Screen name="seller/apply" />
+                  <Stack.Screen name="seller/dashboard" />
+                  <Stack.Screen name="seller/post-deal" options={{ presentation: 'modal' }} />
+                  <Stack.Screen name="deals/index" />
+                </Stack>
+                <PatternConfirmPrompt />
+              </PatternProvider>
+            </NotificationsProvider>
           </VoiceProvider>
         </ThemeProvider>
       </SafeAreaProvider>

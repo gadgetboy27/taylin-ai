@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { supabase } from '../lib/supabase.js'
 import { assignTier } from '../lib/tiers.js'
+import { authMiddleware } from '../middleware/auth.js'
+import { importCatalogue } from '../lib/catalogue-import.js'
 import {
   conductInterview,
   scoreInterview,
@@ -21,6 +23,80 @@ sellersRoute.get('/', async (c) => {
     .limit(50)
 
   return c.json({ sellers: data ?? [] })
+})
+
+// ── Auth: dashboard bootstrap for the logged-in seller (requires auth) ───────
+sellersRoute.get('/me', async (c) => {
+  const userId = c.get('userId')
+
+  const { data: seller } = await supabase
+    .from('sellers')
+    .select('id, business_name, trust_tier, gst_registered, identity_verified, total_orders, onboarded_at')
+    .eq('owner_user_id', userId)
+    .single()
+
+  if (!seller) return c.json({ error: 'No seller profile for this account' }, 404)
+  return c.json({ seller })
+})
+
+// ── Seller: import (or re-import) a catalogue from their website URL ────────
+sellersRoute.post(
+  '/me/catalogue/import',
+  authMiddleware,
+  zValidator('json', z.object({ url: z.string().min(3).optional() })),
+  async (c) => {
+    const userId = c.get('userId')
+    const { url } = c.req.valid('json')
+
+    const { data: seller } = await supabase
+      .from('sellers')
+      .select('id, status, catalogue_url')
+      .eq('owner_user_id', userId)
+      .single()
+
+    if (!seller) return c.json({ error: 'No seller profile for this account' }, 404)
+    if (seller.status !== 'active') return c.json({ error: 'Seller account is not active' }, 403)
+
+    const targetUrl = url ?? seller.catalogue_url
+    if (!targetUrl) return c.json({ error: 'No catalogue URL provided or on file' }, 400)
+
+    if (url && url !== seller.catalogue_url) {
+      await supabase.from('sellers').update({ catalogue_url: url }).eq('id', seller.id)
+    }
+
+    const result = await importCatalogue(seller.id, targetUrl)
+    return c.json(result)
+  }
+)
+
+// ── Cron: re-sync catalogues that haven't been checked in 24h ────────────────
+// Same X-Cron-Secret pattern as signals.ts /run and escrow.ts /auto-release.
+sellersRoute.post('/catalogue/resync', async (c) => {
+  const cronSecret = c.req.header('X-Cron-Secret')
+  if (cronSecret !== process.env.CRON_SECRET) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const staleThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+  const { data: sellersToSync } = await supabase
+    .from('sellers')
+    .select('id, catalogue_url')
+    .eq('status', 'active')
+    .not('catalogue_url', 'is', null)
+    .or(`catalogue_last_synced.is.null,catalogue_last_synced.lt.${staleThreshold}`)
+
+  let synced = 0
+  let productsInserted = 0
+
+  for (const seller of sellersToSync ?? []) {
+    if (!seller.catalogue_url) continue
+    const result = await importCatalogue(seller.id, seller.catalogue_url)
+    synced++
+    productsInserted += result.productsInserted
+  }
+
+  return c.json({ processed: (sellersToSync ?? []).length, synced, productsInserted })
 })
 
 // ── Interview: start a new application ───────────────────────────────────────
@@ -147,7 +223,9 @@ sellersRoute.post(
         finalHistory
       )
 
-      // Create the seller record
+      // Create the seller record — owner_user_id links it back to the buyer
+      // identity that completed this interview, so they can log in as this
+      // seller via the existing SMS-OTP auth flow (no separate seller login).
       const { data: seller, error: sellerError } = await supabase
         .from('sellers')
         .insert({
@@ -162,11 +240,18 @@ sellersRoute.post(
           truth_layer: mergedExtracted,
           verification_summary: mergedVerifications,
           onboarded_at: new Date().toISOString(),
+          owner_user_id: userId,
+          postcode: (mergedExtracted.postcode as string) ?? null,
+          city: (mergedExtracted.locationNZ as string) ?? null,
         })
         .select('id, trust_tier')
         .single()
 
       if (sellerError) return c.json({ error: 'Failed to create seller profile' }, 500)
+
+      // Upgrade the buyer identity to 'both' — they keep buying, and can now
+      // also reach the seller dashboard as the same logged-in user.
+      await supabase.from('users').update({ role: 'both' }).eq('id', userId)
 
       await supabase
         .from('seller_applications')

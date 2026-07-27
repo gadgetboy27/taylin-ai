@@ -9,13 +9,20 @@ import { tokenRoute } from './routes/token.js'
 import { orderRoute } from './routes/order.js'
 import { escrowRoute } from './routes/escrow.js'
 import { sellersRoute } from './routes/sellers.js'
+import { adminSellersRoute } from './routes/admin/sellers.js'
 import { preferencesRoute } from './routes/preferences.js'
 import { signalsRoute } from './routes/signals.js'
 import { voiceRoute } from './routes/voice.js'
 import { authRoute } from './routes/auth.js'
 import { researchRoute } from './routes/research.js'
+import { notificationsRoute } from './routes/notifications.js'
+import { suggestionsRoute } from './routes/suggestions.js'
+import { profileRoute } from './routes/profile.js'
+import { dealsRoute } from './routes/deals.js'
+import { couriersRoute } from './routes/couriers.js'
 import { authMiddleware } from './middleware/auth.js'
 import { rateLimitMiddleware } from './middleware/rateLimit.js'
+import { adminMiddleware } from './middleware/admin.js'
 
 const app = new Hono()
 
@@ -52,6 +59,12 @@ app.use('/escrow/*', authMiddleware)
 app.use('/preferences/*', authMiddleware)
 app.use('/signals/*', authMiddleware)
 app.use('/voice/*', authMiddleware)
+app.use('/sellers/apply/*', authMiddleware)
+app.use('/sellers/me', authMiddleware)
+app.use('/admin/*', adminMiddleware)
+app.use('/notifications/*', authMiddleware)
+app.use('/suggestions', authMiddleware)
+app.use('/profile/*', authMiddleware)
 
 app.use('/intent', rateLimitMiddleware('searches'))
 app.use('/order', rateLimitMiddleware('orders'))
@@ -63,11 +76,17 @@ app.route('/token', tokenRoute)
 app.route('/order', orderRoute)
 app.route('/escrow', escrowRoute)
 app.route('/sellers', sellersRoute)
+app.route('/admin/sellers', adminSellersRoute)
 app.route('/preferences', preferencesRoute)
 app.route('/signals', signalsRoute)
 app.route('/voice', voiceRoute)
 app.route('/auth', authRoute)
 app.route('/research', researchRoute)
+app.route('/notifications', notificationsRoute)
+app.route('/suggestions', suggestionsRoute)
+app.route('/profile', profileRoute)
+app.route('/deals', dealsRoute)
+app.route('/couriers', couriersRoute)
 
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.notFound((c) => c.json({ error: 'Not found' }, 404))

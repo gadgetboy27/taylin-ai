@@ -61,3 +61,25 @@ export async function sendMessage(
   if (!res.ok) throw new Error('Failed to send message')
   return res.json() as Promise<MessageResponse>
 }
+
+export type SellerProfile = {
+  id: string
+  business_name: string
+  trust_tier: 1 | 2 | 3
+  gst_registered: boolean
+  identity_verified: boolean
+  total_orders: number
+  onboarded_at: string | null
+}
+
+// Returns null if the logged-in user has no seller profile yet (not a 404 —
+// callers use this to decide whether to show the dashboard or the landing page).
+export async function getMySellerProfile(): Promise<SellerProfile | null> {
+  const res = await fetch(`${API_URL}/sellers/me`, {
+    headers: await authHeaders(),
+  })
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error('Failed to load seller profile')
+  const { seller } = await res.json() as { seller: SellerProfile }
+  return seller
+}

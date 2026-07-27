@@ -8,6 +8,7 @@ import { searchTrademe, searchTrademeMotors, isTrademeconfigured } from '../lib/
 import { searchEbay, isEbayConfigured } from '../lib/ebay.js'
 import { searchWeb, isWebSearchConfigured } from '../lib/web-search.js'
 import { searchAliexpress, isAliexpressConfigured } from '../lib/aliexpress.js'
+import { applyLocalSellerFloor } from '../lib/ranking-fairness.js'
 
 export const searchRoute = new Hono()
 
@@ -48,10 +49,16 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
     }
     if (candidates.length) sources.push('amadeus')
   } else {
-    // Run all configured adapters in parallel — Trade Me (NZ), eBay (global), Brave (web)
+    // Run all sources in parallel — Trade Me (NZ), eBay (global), Brave (web),
+    // AliExpress, and our own local sellers. Internal sellers used to only
+    // surface as a last-resort fallback when every external source came back
+    // empty — that structurally buried local/mom-and-pop listings any time a
+    // big external marketplace had even one hit. They're a first-class
+    // candidate source now; ranking-fairness.ts is what guarantees their
+    // visibility, not exclusion-by-default.
     const isVehicle = brief.category === 'marketplace'
 
-    const [tmResult, ebayResult, webResult, aliResult] = await Promise.allSettled([
+    const [tmResult, ebayResult, webResult, aliResult, internalResult] = await Promise.allSettled([
       isTrademeconfigured
         ? (isVehicle
           ? searchTrademeMotors({ query, priceMax: brief.priceMax })
@@ -69,32 +76,43 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
       isAliexpressConfigured
         ? searchAliexpress({ query, priceMin: brief.priceMin ?? undefined, priceMax: brief.priceMax ?? undefined })
         : Promise.resolve([]),
-    ])
 
-    if (tmResult.status === 'fulfilled' && tmResult.value.length) {
-      candidates.push(...tmResult.value); sources.push('trademe')
-    }
-    if (ebayResult.status === 'fulfilled' && ebayResult.value.length) {
-      candidates.push(...ebayResult.value); sources.push('ebay')
-    }
-    if (webResult.status === 'fulfilled' && webResult.value.length) {
-      candidates.push(...webResult.value); sources.push('web')
-    }
-    if (aliResult.status === 'fulfilled' && aliResult.value.length) {
-      candidates.push(...aliResult.value); sources.push('aliexpress')
-    }
-
-    // Last resort: internal stub catalogue
-    if (candidates.length === 0) {
-      const { data: products } = await supabase
+      // Only active sellers are searchable at all — suspended/banned sellers
+      // are excluded here, not just deprioritized at ranking time.
+      supabase
         .from('products')
-        .select('*, sellers(trust_tier, business_name)')
+        .select('*, sellers!inner(trust_tier, business_name, status)')
+        .eq('sellers.status', 'active')
         .ilike('name', `%${query}%`)
         .eq('stock_available', true)
         .lte('price', brief.priceMax ?? 99999)
         .limit(20)
-      candidates = products ?? []
-      if (candidates.length) sources.push('internal')
+        .then(({ data }) => data ?? []),
+    ])
+
+    if (tmResult.status === 'fulfilled' && tmResult.value.length) {
+      candidates.push(...tmResult.value.map((r) => ({ ...r, origin: 'external' }))); sources.push('trademe')
+    }
+    if (ebayResult.status === 'fulfilled' && ebayResult.value.length) {
+      candidates.push(...ebayResult.value.map((r) => ({ ...r, origin: 'external' }))); sources.push('ebay')
+    }
+    if (webResult.status === 'fulfilled' && webResult.value.length) {
+      candidates.push(...webResult.value.map((r) => ({ ...r, origin: 'external' }))); sources.push('web')
+    }
+    if (aliResult.status === 'fulfilled' && aliResult.value.length) {
+      candidates.push(...aliResult.value.map((r) => ({ ...r, origin: 'external' }))); sources.push('aliexpress')
+    }
+    if (internalResult.status === 'fulfilled' && internalResult.value.length) {
+      candidates.push(...internalResult.value.map((r) => {
+        const row = r as Record<string, unknown> & { sellers?: { trust_tier?: number; status?: string } }
+        return {
+          ...row,
+          origin: 'internal',
+          sellerStatus: row.sellers?.status,
+          trustTier: row.sellers?.trust_tier,
+        }
+      }))
+      sources.push('internal')
     }
   }
 
@@ -110,11 +128,12 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
     negativeSignals: p.negative_signals,
   }))
 
-  const { ranked, summaries } = await rankResults(brief as Parameters<typeof rankResults>[0], candidates, prefContext)
+  const relevanceRanked = await rankResults(brief as Parameters<typeof rankResults>[0], candidates, prefContext)
+  const { ranked, summaries } = applyLocalSellerFloor(relevanceRanked.ranked, relevanceRanked.summaries)
 
   await supabase
     .from('searches')
-    .update({ results_shown: ranked.slice(0, 10) })
+    .update({ results_shown: ranked })
     .eq('id', searchId)
 
   const results = ranked.map((r, i) => {
