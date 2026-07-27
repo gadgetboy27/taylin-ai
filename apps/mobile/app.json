@@ -60,7 +60,12 @@
           "icon": "./assets/icon.png"
         }
       ],
-      "@react-native-google-signin/google-signin"
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.515880393101-v217ndn3mfasbu5jfqbpa4v8cmvksjh5"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
