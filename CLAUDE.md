@@ -95,8 +95,10 @@ Commands: `npm run mobile` · `npm run api` · `npm run typecheck` (runs both wo
 
 ## Current state (2026-07-27)
 
-- **Supabase project `msdrnmgqbhjlnqhrniif` (taylin-ai, ap-southeast-2) is live but its schema is EMPTY — none of the 16 migrations have been applied.** Credentials are in `packages/api/.env`; `apps/mobile/.env` still needs the matching `EXPO_PUBLIC_*` values.
-- Migrations define: users, preferences, searches, sellers, products, orders, monitors, seller_applications, push_tokens, notifications, deals, couriers.
+- Supabase project `msdrnmgqbhjlnqhrniif` (taylin-ai, ap-southeast-2) is live with all 17 migrations applied. Credentials are in `packages/api/.env`; **`apps/mobile/.env` still points at the old project and needs the new `EXPO_PUBLIC_*` values.**
+- 12 tables: users, preferences, searches, sellers, products, orders, monitors, seller_applications, push_tokens, notifications, deals, couriers. All have RLS enabled.
+- Migrations are applied via the Supabase Management API, not the CLI — the `001_`-style filenames aren't the timestamps `supabase db push` expects, so **nothing is recorded in `supabase_migrations.schema_migrations`.** Track what's applied by hand, or renumber before adopting the CLI.
+- **New tables must enable RLS in their own migration.** `009_rls_policies.sql` only covered the tables that existed then; `seller_applications` was added later and sat world-readable until `017` caught it.
 - Search adapters wired: Trade Me, eBay, Brave web, AliExpress, Amadeus (flights), plus internal sellers.
 - Keys present: Anthropic, Gemini, Brave (search + answers), eBay, Deepgram, TrackingMore. Still empty: Trade Me, Amadeus, NZBN, Twilio, Stripe, AliExpress.
 - `SETUP.md` is stale — it claims 9 migrations and describes a `DEV_SKIP_AUTH` flag that no longer exists.

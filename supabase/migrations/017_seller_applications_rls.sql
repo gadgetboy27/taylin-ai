@@ -1,0 +1,11 @@
+-- seller_applications was created in 010, after 009 had already enabled RLS on
+-- the tables existing at that point — so it was left with RLS off entirely and
+-- the anon key (which ships in the mobile app) could read every application:
+-- full interview transcripts, extracted business data, verification results.
+--
+-- No policy is added deliberately. The table is only ever read/written by
+-- routes/sellers.ts through the service role, which bypasses RLS; the mobile
+-- app reaches applications exclusively via the API. RLS-on-with-no-policy is
+-- therefore deny-all for clients and a no-op for the server, matching the
+-- convention 015_deals.sql uses for service-role-only writes.
+alter table seller_applications enable row level security;
