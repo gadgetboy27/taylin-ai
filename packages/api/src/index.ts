@@ -20,6 +20,7 @@ import { suggestionsRoute } from './routes/suggestions.js'
 import { profileRoute } from './routes/profile.js'
 import { dealsRoute } from './routes/deals.js'
 import { couriersRoute } from './routes/couriers.js'
+import { connectRoute } from './routes/connect.js'
 import { authMiddleware } from './middleware/auth.js'
 import { rateLimitMiddleware } from './middleware/rateLimit.js'
 import { adminMiddleware } from './middleware/admin.js'
@@ -66,6 +67,7 @@ app.use('/research', authMiddleware)
 app.use('/notifications/*', authMiddleware)
 app.use('/suggestions', authMiddleware)
 app.use('/profile/*', authMiddleware)
+app.use('/connect/*', authMiddleware)
 
 app.use('/intent', rateLimitMiddleware('searches'))
 app.use('/order', rateLimitMiddleware('orders'))
@@ -88,6 +90,7 @@ app.route('/suggestions', suggestionsRoute)
 app.route('/profile', profileRoute)
 app.route('/deals', dealsRoute)
 app.route('/couriers', couriersRoute)
+app.route('/connect', connectRoute)
 
 // ── 404 handler ───────────────────────────────────────────────────────────────
 app.notFound((c) => c.json({ error: 'Not found' }, 404))

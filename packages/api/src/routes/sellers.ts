@@ -229,6 +229,10 @@ sellersRoute.post(
         finalHistory
       )
 
+      // An NZBN only counts if the register actually confirmed it — a seller
+      // typing 13 digits proves nothing on its own.
+      const nzbnVerified = mergedVerifications.nzbn?.success === true
+
       // Create the seller record — owner_user_id links it back to the buyer
       // identity that completed this interview, so they can log in as this
       // seller via the existing SMS-OTP auth flow (no separate seller login).
@@ -238,9 +242,21 @@ sellersRoute.post(
           business_name: (mergedExtracted.businessName as string) ?? 'Unknown Business',
           contact_email: '',   // filled from user profile on the frontend
           gst_registered: (mergedExtracted.gstRegistered as boolean) ?? false,
-          identity_verified: scores.trustTier <= 2,
+          // Only a confirmed NZBN counts as identity at this point. This used
+          // to be `scores.trustTier <= 2`, which was circular — the tier was
+          // derived from the interview score, and lib/tiers.ts then read
+          // identity_verified back to compute the tier. Nothing was verified.
+          // Sellers without an NZBN establish identity through Stripe Connect
+          // instead (POST /connect/sync), which is regulated KYC and doesn't
+          // require being a registered business.
+          identity_verified: nzbnVerified,
+          identity_source: nzbnVerified ? 'nzbn' : null,
+          identity_verified_at: nzbnVerified ? new Date().toISOString() : null,
           website_url: (mergedExtracted.website as string) ?? null,
           nzbn: (mergedExtracted.nzbn as string) ?? null,
+          legal_name: (mergedExtracted.legalName as string) ?? null,
+          trading_address: (mergedExtracted.tradingAddress as string) ?? null,
+          marketplace_profiles: (mergedExtracted.marketplaceProfiles as unknown[]) ?? [],
           online_verified: Object.values(mergedVerifications).some((v) => v.success),
           trust_tier: scores.trustTier,
           truth_layer: mergedExtracted,
