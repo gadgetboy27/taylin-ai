@@ -49,6 +49,13 @@ export async function startInterview(): Promise<StartResponse> {
   return res.json() as Promise<StartResponse>
 }
 
+export class InterviewError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+    this.name = 'InterviewError'
+  }
+}
+
 export async function sendMessage(
   applicationId: string,
   message: string
@@ -58,7 +65,13 @@ export async function sendMessage(
     headers: await authHeaders(),
     body: JSON.stringify({ applicationId, message }),
   })
-  if (!res.ok) throw new Error('Failed to send message')
+  if (!res.ok) {
+    // Carry the server's reason through. A 404 here means the application row
+    // is gone, which is a different problem from a dropped request and needs a
+    // different fix — restart the interview, not retry the message.
+    const { error } = await res.json().catch(() => ({ error: null })) as { error?: string }
+    throw new InterviewError(error ?? `Request failed (${res.status})`, res.status)
+  }
   return res.json() as Promise<MessageResponse>
 }
 

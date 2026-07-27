@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
 import { ChatBubble, TypingIndicator } from '@/components/ChatBubble'
-import { startInterview, sendMessage, type InterviewMessage } from '@/lib/seller-api'
+import { startInterview, sendMessage, InterviewError, type InterviewMessage } from '@/lib/seller-api'
 import { floatShadow } from '@/lib/styles'
 
 type UIItem =
@@ -98,11 +98,22 @@ export default function SellerApplyScreen() {
         setCompletionSummary(response.summary ?? null)
         AccessibilityInfo.announceForAccessibility('Interview complete! Your seller account is ready.')
       }
-    } catch {
+    } catch (err) {
       setIsTyping(false)
+      // A lost application (404) or an already-finished one (409) can't be
+      // fixed by repeating yourself, so don't tell the seller to — that just
+      // loops them. Only an actual transport failure warrants "say that again".
+      const status = err instanceof InterviewError ? err.status : 0
+      const content =
+        status === 404
+          ? "I've lost track of this application, sorry — head back and start the interview again."
+          : status === 409
+          ? "This interview is already finished — head back to see your seller profile."
+          : "Sorry, I dropped the connection for a second — could you say that again?"
+
       const errorMsg: InterviewMessage = {
         role: 'taylor',
-        content: "Sorry, I dropped the connection for a second — could you say that again?",
+        content,
         ts: new Date().toISOString(),
       }
       setMessages((prev) => [...prev, errorMsg])
