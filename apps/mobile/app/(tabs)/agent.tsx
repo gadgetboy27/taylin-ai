@@ -5,6 +5,13 @@ import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
 import { ThemeSelector } from '@/components/ThemeSelector'
 
+const HOW_IT_WORKS = [
+  'A short chat with Taylor about your business — about 5 minutes.',
+  'We check your details online, so there are no documents to upload.',
+  'Your trust tier is set: higher tier means lower fees and more visibility.',
+  'Your products get listed and buyers start finding you.',
+]
+
 export default function AgentScreen() {
   const { theme } = useTheme()
   const c = theme.colors
@@ -44,28 +51,16 @@ export default function AgentScreen() {
           <Text style={styles.sellerArrow}>→</Text>
         </Pressable>
 
-        <Pressable
-          onPress={() => router.push('/seller')}
-          accessibilityRole="button"
-          accessibilityLabel="How selling on taylin.ai works"
-        >
-          <Text style={styles.sellerLearnMore}>How it works →</Text>
-        </Pressable>
-
+        {/* The pitch inline rather than behind a tap — it's four lines, and a
+            page of its own only delayed the one action on it. */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your preference graph</Text>
-          <Text style={styles.sectionDesc}>
-            taylin.ai learns from every search, skip, and purchase.
-            The longer you use it, the better it knows you.
-          </Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Purchases</Text>
-            <Text style={styles.infoValue}>—</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Categories tracked</Text>
-            <Text style={styles.infoValue}>—</Text>
-          </View>
+          <Text style={styles.sectionTitle}>How it works</Text>
+          {HOW_IT_WORKS.map((step, i) => (
+            <View key={step} style={styles.stepRow}>
+              <Text style={styles.stepNumber}>{i + 1}</Text>
+              <Text style={styles.stepText}>{step}</Text>
+            </View>
+          ))}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -95,10 +90,6 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
       marginBottom: 16,
     },
     sectionTitle: { fontSize: 17, fontWeight: '700', color: c.text, marginBottom: 6 },
-    sectionDesc: { fontSize: 14, color: c.textSecondary, lineHeight: 20, marginBottom: 16 },
-    infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.borderLight },
-    infoLabel: { fontSize: 14, color: c.textSecondary },
-    infoValue: { fontSize: 14, fontWeight: '600', color: c.text },
     sellerCard: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -108,16 +99,18 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
       padding: 20,
       marginBottom: 16,
     },
+    stepRow: { flexDirection: 'row', gap: 10, paddingVertical: 6 },
+    stepNumber: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: c.primary,
+      width: 16,
+      lineHeight: 19,
+    },
+    stepText: { fontSize: 14, color: c.textSecondary, lineHeight: 19, flexShrink: 1 },
     sellerCardBody: { flexShrink: 1 },
     sellerTitle: { fontSize: 16, fontWeight: '700', color: c.textOnPrimary, marginBottom: 4 },
     sellerDesc: { fontSize: 13, color: c.textOnPrimary, opacity: 0.8, lineHeight: 18 },
     sellerArrow: { fontSize: 20, color: c.textOnPrimary },
-    sellerLearnMore: {
-      fontSize: 13,
-      color: c.textMuted,
-      textAlign: 'center',
-      paddingVertical: 12,
-      marginBottom: 8,
-    },
   })
 }
