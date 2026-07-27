@@ -13,35 +13,43 @@ export default function AgentScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title} accessibilityRole="header">
-          Your agent
-        </Text>
-        <Text style={styles.subtitle}>
-          Preferences and appearance
-        </Text>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Theme</Text>
-          <Text style={styles.sectionDesc}>
-            Choose how taylin.ai looks and feels.
-          </Text>
-          <ThemeSelector expanded />
+        {/* Theme lives inline with the title — as a full section it was taking
+            most of the first screen ahead of anything actionable. */}
+        <View style={styles.headerRow}>
+          <View style={styles.headerText}>
+            <Text style={styles.title} accessibilityRole="header">
+              Your agent
+            </Text>
+            <Text style={styles.subtitle}>Preferences and appearance</Text>
+          </View>
+          <ThemeSelector />
         </View>
 
-        {/* Become a seller */}
+        {/* Straight into the interview — the /seller landing page sat between
+            here and the only action on it, so it cost a tap without adding
+            anything a returning seller needs. Its pitch is still reachable
+            below for anyone deciding. */}
         <Pressable
           style={styles.sellerCard}
-          onPress={() => router.push('/seller')}
+          onPress={() => router.push('/seller/apply')}
           accessibilityRole="button"
-          accessibilityLabel="Become a seller on taylin.ai"
+          accessibilityLabel="Start or resume your seller interview"
         >
-          <View>
+          <View style={styles.sellerCardBody}>
             <Text style={styles.sellerTitle}>Sell on taylin.ai</Text>
             <Text style={styles.sellerDesc}>
-              Get your products in front of AI-powered buyers. 5-minute interview to get started.
+              A short chat with Taylor and your shop is listed.
             </Text>
           </View>
           <Text style={styles.sellerArrow}>→</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => router.push('/seller')}
+          accessibilityRole="button"
+          accessibilityLabel="How selling on taylin.ai works"
+        >
+          <Text style={styles.sellerLearnMore}>How it works →</Text>
         </Pressable>
 
         <View style={styles.section}>
@@ -68,8 +76,16 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.background },
     container: { padding: 20, paddingBottom: 40 },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: 12,
+      marginBottom: 20,
+    },
+    headerText: { flexShrink: 1 },
     title: { fontSize: 28, fontWeight: '700', color: c.text },
-    subtitle: { fontSize: 15, color: c.textMuted, marginTop: 4, marginBottom: 28 },
+    subtitle: { fontSize: 15, color: c.textMuted, marginTop: 4 },
     section: {
       backgroundColor: c.surface,
       borderRadius: 16,
@@ -92,8 +108,16 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
       padding: 20,
       marginBottom: 16,
     },
+    sellerCardBody: { flexShrink: 1 },
     sellerTitle: { fontSize: 16, fontWeight: '700', color: c.textOnPrimary, marginBottom: 4 },
-    sellerDesc: { fontSize: 13, color: c.textOnPrimary, opacity: 0.8, lineHeight: 18, maxWidth: '85%' },
+    sellerDesc: { fontSize: 13, color: c.textOnPrimary, opacity: 0.8, lineHeight: 18 },
     sellerArrow: { fontSize: 20, color: c.textOnPrimary },
+    sellerLearnMore: {
+      fontSize: 13,
+      color: c.textMuted,
+      textAlign: 'center',
+      paddingVertical: 12,
+      marginBottom: 8,
+    },
   })
 }
