@@ -9,12 +9,26 @@ export type SpeechState = 'idle' | 'listening' | 'processing' | 'error'
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001'
 
-export function useSpeech(onResult: (text: string) => void) {
+export type SpeechOptions = {
+  /**
+   * What to say back once a transcript arrives. Defaults to the search
+   * phrasing; address capture and any other non-search caller passes its own
+   * so the app doesn't announce "Searching for Wellington 6011".
+   */
+  confirmPhrase?: (transcript: string) => string
+}
+
+export function useSpeech(onResult: (text: string) => void, options?: SpeechOptions) {
   const [state, setState] = useState<SpeechState>('idle')
   const [partialResult, setPartialResult] = useState('')
   const [error, setError] = useState<string | null>(null)
   const recordingRef = useRef<Audio.Recording | null>(null)
   const { speak } = useTTS()
+
+  // Held in a ref so callers can pass an inline arrow without re-creating
+  // stopListening on every render.
+  const confirmPhraseRef = useRef(options?.confirmPhrase)
+  confirmPhraseRef.current = options?.confirmPhrase
 
   const startListening = useCallback(async () => {
     if (Platform.OS === 'web') {
@@ -91,7 +105,7 @@ export function useSpeech(onResult: (text: string) => void) {
 
       if (transcript?.trim()) {
         setPartialResult(transcript)
-        speak(`Got it. Searching for ${transcript}`)
+        speak(confirmPhraseRef.current?.(transcript) ?? `Got it. Searching for ${transcript}`)
         onResult(transcript.trim())
       } else {
         speak("Didn't catch that — try again", 'high')
