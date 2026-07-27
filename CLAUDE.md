@@ -63,3 +63,40 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+---
+
+# Project: taylin.ai
+
+NZ-first buyer's agent. Voice or text intent → parallel marketplace search → ranked results → escrowed purchase. Sellers onboard through an AI interview ("Taylor") that builds a verifiable truth layer.
+
+## Layout
+
+npm workspaces + turbo:
+- `apps/mobile` — Expo Router, TypeScript
+- `packages/api` — Hono on Node, **ESM: relative imports need the `.js` extension**
+- `supabase/migrations` — numbered SQL, applied in order
+
+Commands: `npm run mobile` · `npm run api` · `npm run typecheck` (runs both workspaces). No test suite exists yet.
+
+## Invariants — don't break these
+
+- **AI keys never leave `packages/api/src/lib/ai-wrapper.ts`.** Every model call routes through it. Nothing AI-related belongs in the mobile app.
+- **`.env` files stay gitignored.** Secrets live in `packages/api/.env` and `apps/mobile/.env`, never in source. The mobile app only ever receives `EXPO_PUBLIC_*` values.
+- **Ranking fairness is deterministic, not prompted.** `lib/ranking-fairness.ts` reserves `FLOOR_SLOTS` of the top 10 for qualifying local sellers *after* the LLM ranks. A fairness guarantee has to be auditable — never fold it into a prompt.
+- **Two distinct fraud modules.** `lib/fraud.ts` = buyer spend limits before issuing a payment token. `lib/seller-fraud.ts` = seller KYC/enforcement. Don't merge them.
+- **`sellers.trust_tier` ≠ `sellers.status`.** Tier = verification quality, drives fee % and escrow rules (`lib/tiers.ts`). Status = active enforcement action. Enforcement only ever tightens; `banned` is admin-only.
+- **Auth is opt-in per route.** `src/index.ts` gates most paths with `app.use(...)`, but newer routes (`deals`, `couriers`) attach `authMiddleware` per-handler instead so public reads stay public. Mounting a route does *not* protect it — decide and wire auth explicitly.
+
+## Deliberately provisional
+
+- `lib/broadcast.ts` geo tiers are a strawman. Only postcode/city exist (`014_geo.sql` — no lat/lng, by choice, to avoid the GPS permission prompt and privacy surface). So `city`/`region` collapse to one query and `national`/`international` to another. The 5-tier enum is kept so the schema survives finer location data later.
+- Escrow is a stub pointing at SafeSend (`apps/mobile/lib/safesend.ts`).
+
+## Current state (2026-07-27)
+
+- **Supabase project `msdrnmgqbhjlnqhrniif` (taylin-ai, ap-southeast-2) is live but its schema is EMPTY — none of the 16 migrations have been applied.** Credentials are in `packages/api/.env`; `apps/mobile/.env` still needs the matching `EXPO_PUBLIC_*` values.
+- Migrations define: users, preferences, searches, sellers, products, orders, monitors, seller_applications, push_tokens, notifications, deals, couriers.
+- Search adapters wired: Trade Me, eBay, Brave web, AliExpress, Amadeus (flights), plus internal sellers.
+- Keys present: Anthropic, Gemini, Brave (search + answers), eBay, Deepgram, TrackingMore. Still empty: Trade Me, Amadeus, NZBN, Twilio, Stripe, AliExpress.
+- `SETUP.md` is stale — it claims 9 migrations and describes a `DEV_SKIP_AUTH` flag that no longer exists.
