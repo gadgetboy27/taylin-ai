@@ -23,10 +23,12 @@ const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID
 const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID
 const googleConfigured = !!GOOGLE_WEB_CLIENT_ID
 
-// Configure once at module load rather than per-render. webClientId is the
-// audience the returned ID token is minted for, which is what Supabase
-// validates — iosClientId only identifies the app to Google on iOS.
-if (googleConfigured) {
+// Native only. Configure once at module load rather than per-render.
+// webClientId is the audience the returned ID token is minted for, which is
+// what Supabase validates — iosClientId only identifies the app to Google.
+// On web there's no native module to configure: the browser uses Supabase's
+// redirect flow instead (see signInWithGoogle below).
+if (googleConfigured && Platform.OS !== 'web') {
   GoogleSignin.configure({
     webClientId: GOOGLE_WEB_CLIENT_ID,
     iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
@@ -54,6 +56,19 @@ export default function SignInScreen() {
     setLoading(true)
     setError(null)
     try {
+      // Web has no native Google module. signInWithOAuth navigates the browser
+      // to Google and back; lib/supabase.ts sets detectSessionInUrl on web, so
+      // the returning redirect is what establishes the session. Nothing after
+      // this call runs — the page is already navigating away.
+      if (Platform.OS === 'web') {
+        const { error: oauthErr } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: window.location.origin },
+        })
+        if (oauthErr) throw oauthErr
+        return
+      }
+
       await GoogleSignin.hasPlayServices()
       const result = await GoogleSignin.signIn()
 
