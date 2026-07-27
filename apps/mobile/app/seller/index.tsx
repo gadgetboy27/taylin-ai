@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
+import { getCurrentApplication, type CurrentApplication } from '@/lib/seller-api'
 
 const BENEFITS = [
   {
@@ -33,6 +34,17 @@ export default function SellerLandingScreen() {
   const { theme } = useTheme()
   const c = theme.colors
   const styles = makeStyles(c)
+
+  // An unfinished interview is otherwise invisible here — the CTA said "Start"
+  // either way, which reads as "throw away what you had".
+  const [inProgress, setInProgress] = useState<CurrentApplication>(null)
+  useEffect(() => {
+    let cancelled = false
+    getCurrentApplication()
+      .then((app) => { if (!cancelled) setInProgress(app) })
+      .catch(() => {/* not signed in yet, or offline — just show "Start" */})
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -83,11 +95,17 @@ export default function SellerLandingScreen() {
           style={styles.ctaBtn}
           onPress={() => router.push('/seller/apply')}
           accessibilityRole="button"
-          accessibilityLabel="Start the seller interview"
+          accessibilityLabel={inProgress ? 'Resume your seller interview' : 'Start the seller interview'}
         >
-          <Text style={styles.ctaText}>Start the interview →</Text>
+          <Text style={styles.ctaText}>
+            {inProgress ? 'Resume the interview →' : 'Start the interview →'}
+          </Text>
         </Pressable>
-        <Text style={styles.ctaNote}>Takes about 5 minutes · Free · No documents needed</Text>
+        <Text style={styles.ctaNote}>
+          {inProgress
+            ? `You're ${inProgress.messageCount} messages in · Picks up where you left off`
+            : 'Takes about 5 minutes · Free · No documents needed'}
+        </Text>
       </View>
     </SafeAreaView>
   )

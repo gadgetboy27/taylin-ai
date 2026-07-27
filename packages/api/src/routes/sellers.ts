@@ -305,6 +305,33 @@ sellersRoute.post(
 )
 
 // ── Get application state (for resuming) ─────────────────────────────────────
+// Read-only "do I have an interview going?" check.
+// Must be declared before /apply/:id or that route captures "current" as an id.
+// Deliberately separate from /apply/start: start creates an application when
+// none exists, so using it as a check would spawn one for anyone who merely
+// opens the seller landing page.
+sellersRoute.get('/apply/current', async (c) => {
+  const userId = c.get('userId')
+
+  const { data } = await supabase
+    .from('seller_applications')
+    .select('id, conversation')
+    .eq('user_id', userId)
+    .eq('status', 'in_progress')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!data) return c.json({ application: null })
+
+  return c.json({
+    application: {
+      id: data.id,
+      messageCount: (data.conversation as unknown[]).length,
+    },
+  })
+})
+
 sellersRoute.get('/apply/:id', async (c) => {
   const userId = c.get('userId')
   const { id } = c.req.param()

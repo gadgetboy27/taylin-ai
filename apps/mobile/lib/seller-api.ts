@@ -49,6 +49,18 @@ export async function startInterview(): Promise<StartResponse> {
   return res.json() as Promise<StartResponse>
 }
 
+export type CurrentApplication = { id: string; messageCount: number } | null
+
+/** Read-only check — never creates an application, unlike startInterview. */
+export async function getCurrentApplication(): Promise<CurrentApplication> {
+  const res = await fetch(`${API_URL}/sellers/apply/current`, {
+    headers: await authHeaders(),
+  })
+  if (!res.ok) return null
+  const { application } = await res.json() as { application: CurrentApplication }
+  return application
+}
+
 export class InterviewError extends Error {
   constructor(message: string, readonly status: number) {
     super(message)
