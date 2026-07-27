@@ -48,17 +48,68 @@ export function useSpeech(onResult: (text: string) => void, options?: SpeechOpti
   const webChunksRef = useRef<BlobPart[]>([])
   const webStreamRef = useRef<MediaStream | null>(null)
 
+  // Live input amplitude, 0–1, for the waveform. Purely cosmetic, but it's the
+  // only way a user can tell the mic is actually picking them up before the
+  // transcript comes back.
+  const [audioLevel, setAudioLevel] = useState(0)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const rafRef = useRef<number | null>(null)
+
+  const stopMetering = useCallback(() => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+    rafRef.current = null
+    audioCtxRef.current?.close().catch(() => {})
+    audioCtxRef.current = null
+    setAudioLevel(0)
+  }, [])
+
+  const startMetering = useCallback((stream: MediaStream) => {
+    const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+    if (!Ctor) return
+    const ctx = new Ctor()
+    audioCtxRef.current = ctx
+
+    const analyser = ctx.createAnalyser()
+    analyser.fftSize = 512
+    ctx.createMediaStreamSource(stream).connect(analyser)
+
+    const buf = new Uint8Array(analyser.frequencyBinCount)
+    let lastPush = 0
+
+    const tick = () => {
+      analyser.getByteTimeDomainData(buf)
+      // RMS deviation from the 128 midpoint of the unsigned waveform.
+      let sum = 0
+      for (let i = 0; i < buf.length; i++) {
+        const v = (buf[i] - 128) / 128
+        sum += v * v
+      }
+      const rms = Math.sqrt(sum / buf.length)
+
+      // Throttle to ~20fps: plenty smooth for a meter, and avoids a React
+      // re-render on every animation frame.
+      const now = performance.now()
+      if (now - lastPush > 50) {
+        lastPush = now
+        setAudioLevel(Math.min(1, rms * 3)) // speech rarely exceeds ~0.3 RMS
+      }
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+  }, [])
+
   // Held in a ref so callers can pass an inline arrow without re-creating
   // stopListening on every render.
   const confirmPhraseRef = useRef(options?.confirmPhrase)
   confirmPhraseRef.current = options?.confirmPhrase
 
   const releaseWebMic = useCallback(() => {
+    stopMetering()
     webStreamRef.current?.getTracks().forEach((t) => t.stop())
     webStreamRef.current = null
     webRecorderRef.current = null
     webChunksRef.current = []
-  }, [])
+  }, [stopMetering])
 
   // Shared tail of both platforms: upload, speak the confirmation, hand the
   // transcript to the caller.
@@ -111,6 +162,7 @@ export function useSpeech(onResult: (text: string) => void, options?: SpeechOpti
         recorder.ondataavailable = (e) => { if (e.data.size > 0) webChunksRef.current.push(e.data) }
         recorder.start()
         webRecorderRef.current = recorder
+        startMetering(stream)
 
         setState('listening')
         speak('Listening')
@@ -143,8 +195,16 @@ export function useSpeech(onResult: (text: string) => void, options?: SpeechOpti
       setState('listening')
       speak('Listening')
 
+      // isMeteringEnabled drives the same waveform the web path feeds. metering
+      // is dBFS (roughly -160 silent, 0 peak); -60 up is the useful speech band.
       const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
+        { ...Audio.RecordingOptionsPresets.HIGH_QUALITY, isMeteringEnabled: true },
+        (status) => {
+          if (status.isRecording && typeof status.metering === 'number') {
+            setAudioLevel(Math.max(0, Math.min(1, (status.metering + 60) / 60)))
+          }
+        },
+        100
       )
       recordingRef.current = recording
     } catch (err) {
@@ -202,6 +262,7 @@ export function useSpeech(onResult: (text: string) => void, options?: SpeechOpti
       await recording.stopAndUnloadAsync()
       const uri = recording.getURI()
       recordingRef.current = null
+      setAudioLevel(0)
 
       await Audio.setAudioModeAsync({ allowsRecordingIOS: false })
 
@@ -235,6 +296,7 @@ export function useSpeech(onResult: (text: string) => void, options?: SpeechOpti
         recordingRef.current = null
         await Audio.setAudioModeAsync({ allowsRecordingIOS: false })
       }
+      setAudioLevel(0)
     }
     setState('idle')
     setPartialResult('')
@@ -245,6 +307,7 @@ export function useSpeech(onResult: (text: string) => void, options?: SpeechOpti
     state,
     partialResult,
     error,
+    audioLevel,
     startListening,
     stopListening,
     cancelListening,

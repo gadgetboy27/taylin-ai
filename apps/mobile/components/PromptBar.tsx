@@ -12,6 +12,7 @@ import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/context/ThemeContext'
 import { useSpeech } from '@/hooks/useSpeech'
+import { VoiceWave } from '@/components/VoiceWave'
 import { useVoice } from '@/context/VoiceContext'
 import { MIN_TOUCH_TARGET } from '@/lib/accessibility'
 import { floatShadow } from '@/lib/styles'
@@ -43,7 +44,7 @@ export function PromptBar({
     [onChange, onSubmit]
   )
 
-  const { partialResult, startListening, stopListening, isListening, isProcessing } =
+  const { partialResult, startListening, stopListening, isListening, isProcessing, audioLevel } =
     useSpeech(handleSpeechResult)
 
   // Auto-start recording when wake word "Taylin" fires
@@ -78,6 +79,12 @@ export function PromptBar({
 
   const inner = (
     <View style={styles.inner}>
+      {isListening && (
+        <View style={styles.wave}>
+          <VoiceWave level={audioLevel} active={isListening} />
+        </View>
+      )}
+
       <TextInput
         ref={inputRef}
         style={styles.input}
@@ -168,6 +175,7 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
       overflow: 'hidden',
       ...floatShadow,
     },
+    wave: { justifyContent: 'center' },
     inner: {
       flexDirection: 'row',
       alignItems: 'center',
