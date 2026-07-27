@@ -36,6 +36,20 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
   let candidates: unknown[] = []
   const sources: string[] = []
 
+  // searchTerms are alternative phrasings of the same intent, not words to
+  // concatenate — a brief for "good coffee beans" comes back as
+  // ["coffee beans", "good coffee beans"]. Joining them yields the phrase
+  // "coffee beans good coffee beans", which `name ilike '%…%'` can never
+  // match, so internal sellers silently returned nothing whenever the brief
+  // had more than one term. Match any single term instead.
+  // Commas and parens are stripped because PostgREST's `or` filter uses them
+  // as syntax; `%` and `_` because they are ilike wildcards.
+  const orFilter = brief.searchTerms
+    .map((t) => t.replace(/[,()%_]/g, ' ').trim())
+    .filter(Boolean)
+    .map((t) => `name.ilike.%${t}%`)
+    .join(',')
+
   if (brief.category === 'flights') {
     // Flights have their own structured adapter — don't mix with product sources
     const terms = brief.searchTerms
@@ -83,7 +97,7 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
         .from('products')
         .select('*, sellers!inner(trust_tier, business_name, status)')
         .eq('sellers.status', 'active')
-        .ilike('name', `%${query}%`)
+        .or(orFilter || `name.ilike.%${query}%`)
         .eq('stock_available', true)
         .lte('price', brief.priceMax ?? 99999)
         .limit(20)
