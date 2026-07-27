@@ -95,7 +95,7 @@ Commands: `npm run mobile` · `npm run api` · `npm run typecheck` (runs both wo
 
 ## Current state (2026-07-27)
 
-- Supabase project `msdrnmgqbhjlnqhrniif` (taylin-ai, ap-southeast-2) is live with all 17 migrations applied. Credentials are in `packages/api/.env`; **`apps/mobile/.env` still points at the old project and needs the new `EXPO_PUBLIC_*` values.**
+- Supabase project `msdrnmgqbhjlnqhrniif` (taylin-ai, ap-southeast-2) is live with all 17 migrations applied. Both `packages/api/.env` and `apps/mobile/.env` point at it; API boot and public endpoints verified against it.
 - 12 tables: users, preferences, searches, sellers, products, orders, monitors, seller_applications, push_tokens, notifications, deals, couriers. All have RLS enabled.
 - Migrations are applied via the Supabase Management API, not the CLI — the `001_`-style filenames aren't the timestamps `supabase db push` expects, so **nothing is recorded in `supabase_migrations.schema_migrations`.** Track what's applied by hand, or renumber before adopting the CLI.
 - **New tables must enable RLS in their own migration.** `009_rls_policies.sql` only covered the tables that existed then; `seller_applications` was added later and sat world-readable until `017` caught it.
