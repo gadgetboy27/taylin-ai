@@ -144,17 +144,22 @@ export default function PromptScreen() {
             />
           }
         >
-          {/* Hero */}
+          {/* Hero. Long-press resets — pull-to-refresh needs the content to
+              overscroll, and with flexGrow:1 a short page has nothing to pull
+              against, so on mobile web the gesture rarely registers. A press
+              and hold always works, on every platform. */}
           <View style={styles.hero} accessibilityElementsHidden={false}>
-            <Text
-              style={styles.wordmark}
+            <Pressable
+              onLongPress={handleRefresh}
+              delayLongPress={450}
               accessibilityRole="header"
-              accessibilityLabel="taylin dot ai — your personal buying agent"
+              accessibilityLabel="Hey Taylin — your personal buying agent"
+              accessibilityHint="Press and hold to reset the screen"
             >
-              taylin.ai
-            </Text>
+              <Text style={styles.wordmark}>Hey Taylin</Text>
+            </Pressable>
             <Text style={styles.tagline}>
-              {isSearching ? 'Searching...' : theme.tagline}
+              {refreshing ? 'Resetting...' : isSearching ? 'Searching...' : theme.tagline}
             </Text>
           </View>
 

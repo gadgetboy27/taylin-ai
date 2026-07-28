@@ -30,8 +30,21 @@ const app = new Hono()
 // ── Global middleware ──────────────────────────────────────────────────────────
 app.use('*', logger())
 app.use('*', secureHeaders())
+// The deployed web app is served from its own origin, not taylin.ai, so
+// hardcoding the production allowlist meant every browser call from it was
+// blocked — no access-control-allow-origin came back, which Safari surfaces as
+// the unhelpful "Load failed". Driven by APP_URL (the same variable
+// routes/connect.ts uses for Stripe return URLs) so the deployed origin is
+// configuration rather than a code change per environment.
+const allowedOrigins = [
+  'https://taylin.ai',
+  'https://www.taylin.ai',
+  process.env.APP_URL,
+  ...(process.env.CORS_EXTRA_ORIGINS?.split(',').map((o) => o.trim()) ?? []),
+].filter((o): o is string => !!o)
+
 app.use('*', cors({
-  origin: process.env.NODE_ENV === 'production' ? ['https://taylin.ai'] : '*',
+  origin: process.env.NODE_ENV === 'production' ? allowedOrigins : '*',
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowHeaders: ['Content-Type', 'Authorization'],
   maxAge: 600,
