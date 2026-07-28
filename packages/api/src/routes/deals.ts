@@ -64,7 +64,7 @@ dealsRoute.post(
 dealsRoute.get('/', async (c) => {
   const { data } = await supabase
     .from('deals')
-    .select('id, title, description, price, currency, quantity_remaining, expires_at, sellers(business_name, city)')
+    .select('id, title, description, price, currency, quantity_remaining, expires_at, sellers(business_name, city, suburb, postcode, country)')
     .eq('status', 'active')
     .gt('expires_at', new Date().toISOString())
     .gt('quantity_remaining', 0)

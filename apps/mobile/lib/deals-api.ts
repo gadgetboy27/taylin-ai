@@ -10,7 +10,15 @@ export type Deal = {
   currency: string
   quantity_remaining: number
   expires_at: string
-  sellers: { business_name: string; city: string | null } | null
+  // suburb/postcode drive the map pin: lib/nz-localities resolves them to
+  // coordinates offline, so plotting a deal needs no geocoding call.
+  sellers: {
+    business_name: string
+    city: string | null
+    suburb: string | null
+    postcode: string | null
+    country: string | null
+  } | null
 }
 
 async function authHeaders(): Promise<Record<string, string>> {

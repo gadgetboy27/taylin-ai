@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { View, Text, FlatList, Pressable, StyleSheet, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { ScreenHeader } from '@/components/ScreenHeader'
+import { Ionicons } from '@expo/vector-icons'
+import { DealsMap, placeDeals } from '@/components/DealsMap'
 import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
 import { listDeals, claimDeal, type Deal } from '@/lib/deals-api'
@@ -12,6 +14,7 @@ export default function DealsScreen() {
   const styles = makeStyles(c)
 
   const [deals, setDeals] = useState<Deal[]>([])
+  const [mapOpen, setMapOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [claimingId, setClaimingId] = useState<string | null>(null)
 
@@ -42,7 +45,31 @@ export default function DealsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <ScreenHeader title="Local deals" back />
+      <ScreenHeader
+        title="Local deals"
+        back
+        right={
+          placeDeals(deals).length > 0 ? (
+            <Pressable
+              style={styles.mapChip}
+              onPress={() => setMapOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`Show ${placeDeals(deals).length} deals on a map`}
+            >
+              <Ionicons name="map-outline" size={14} color={c.text} />
+              <Text style={styles.mapChipText}>Map</Text>
+            </Pressable>
+          ) : null
+        }
+      />
+
+      {mapOpen && (
+        <DealsMap
+          deals={deals}
+          onClose={() => setMapOpen(false)}
+          onSelect={() => setMapOpen(false)}
+        />
+      )}
 
       <FlatList
         data={deals}
@@ -83,6 +110,17 @@ export default function DealsScreen() {
 
 function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
   return StyleSheet.create({
+    mapChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    mapChipText: { fontSize: 13, color: c.text, fontWeight: '600' },
     safe: { flex: 1, backgroundColor: c.background },
     header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8, gap: 8 },
     title: { fontSize: 24, fontWeight: '800', color: c.text },
