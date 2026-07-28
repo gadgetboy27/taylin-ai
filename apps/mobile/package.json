@@ -6,7 +6,9 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:web": "expo export --platform web --output-dir dist",
+    "serve:web": "node serve-web.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "~14.0.4",
