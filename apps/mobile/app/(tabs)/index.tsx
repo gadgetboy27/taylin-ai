@@ -17,6 +17,8 @@ import { useVoice } from '@/context/VoiceContext'
 import { PromptBar } from '@/components/PromptBar'
 import { PreferencePills } from '@/components/PreferencePills'
 import { ScreenHeader } from '@/components/ScreenHeader'
+import { LocationPrompt } from '@/components/LocationPrompt'
+import { getAddress } from '@/lib/profile-api'
 
 export default function PromptScreen() {
   const { theme } = useTheme()
@@ -50,6 +52,17 @@ export default function PromptScreen() {
   }, [isSearching, startSearch, speak])
 
   const styles = makeStyles(c)
+
+  // Prompt only when we genuinely can't place them. Anyone with a suburb on
+  // file never sees this, and dismissing it lasts the session — nagging a buyer
+  // who declined is worse than ranking nationally.
+  const [needsLocation, setNeedsLocation] = useState(false)
+  const [locationDismissed, setLocationDismissed] = useState(false)
+  useEffect(() => {
+    getAddress()
+      .then((a) => setNeedsLocation(!a?.suburb && !a?.postcode))
+      .catch(() => {/* offline or signed out — stay quiet */})
+  }, [])
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -101,6 +114,15 @@ export default function PromptScreen() {
               {isSearching ? 'Searching...' : theme.tagline}
             </Text>
           </View>
+
+          {needsLocation && !locationDismissed && (
+            <View style={styles.locationSlot}>
+              <LocationPrompt
+                onSaved={() => setNeedsLocation(false)}
+                onDismiss={() => setLocationDismissed(true)}
+              />
+            </View>
+          )}
 
           {/* Preference pills */}
           {preferences.length > 0 && (
@@ -218,6 +240,7 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
     },
 
     // ── Hero — ambient, not dominant ────────────────────────────────
+    locationSlot: { paddingHorizontal: 20, paddingBottom: 16 },
     hero: {
       paddingTop: 48,
       paddingBottom: 40,

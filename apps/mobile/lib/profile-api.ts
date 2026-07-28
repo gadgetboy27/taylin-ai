@@ -15,6 +15,8 @@ export type Address = {
   addressText: string | null
   postcode: string | null
   city: string | null
+  suburb: string | null
+  country: string | null
 }
 
 /**
@@ -28,18 +30,26 @@ export async function getAddress(): Promise<Address | null> {
 
   const { data } = await supabase
     .from('users')
-    .select('address_text, postcode, city')
+    .select('address_text, postcode, city, suburb, country')
     .eq('id', user.id)
     .maybeSingle()
 
   if (!data) return null
-  return { addressText: data.address_text, postcode: data.postcode, city: data.city }
+  return {
+    addressText: data.address_text,
+    postcode: data.postcode,
+    city: data.city,
+    suburb: data.suburb,
+    country: data.country,
+  }
 }
 
 export async function saveAddress(params: {
   addressText?: string
   postcode: string
   city: string
+  suburb?: string
+  country?: string
 }): Promise<void> {
   const res = await fetch(`${API_URL}/profile/address`, {
     method: 'POST',
