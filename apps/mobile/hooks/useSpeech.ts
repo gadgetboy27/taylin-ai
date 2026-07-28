@@ -129,11 +129,18 @@ export function useSpeech(onResult: (text: string) => void, options?: SpeechOpti
       speak("Didn't catch that — try again", 'high')
       setError("Didn't catch that — try again")
       setState('error')
+      // Clear the "Transcribing…" placeholder. Leaving it stuck made the input
+      // look mid-flight forever while the send button sat disabled, with
+      // nothing on screen saying why.
+      setPartialResult('')
       return
     }
 
-    setPartialResult(transcript)
     speak(confirmPhraseRef.current?.(transcript) ?? `Got it. Searching for ${transcript}`)
+    // The caller owns the text from here — it goes into the input via onChange,
+    // where the user can edit it and press send. Setting partialResult to the
+    // transcript and clearing it in the same synchronous block (as this did)
+    // never painted anyway: React batches both updates into one render.
     onResult(transcript.trim())
     setState('idle')
     setPartialResult('')

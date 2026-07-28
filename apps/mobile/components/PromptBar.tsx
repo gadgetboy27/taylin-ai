@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef } from 'react'
 import {
   View,
+  Text,
   TextInput,
   Pressable,
   StyleSheet,
@@ -36,16 +37,19 @@ export function PromptBar({
   const c = theme.colors
   const inputRef = useRef<TextInputType>(null)
 
+  // Put the transcript in the input and stop there. This used to auto-submit
+  // 800ms later, which gave the user no time to read or correct it — and once
+  // onSubmit set isLoading, canSubmit went false, so the send button looked
+  // broken rather than busy.
   const handleSpeechResult = useCallback(
-    (text: string) => {
-      onChange(text)
-      setTimeout(() => onSubmit(text), 800)
-    },
-    [onChange, onSubmit]
+    (text: string) => { onChange(text) },
+    [onChange]
   )
 
-  const { partialResult, startListening, stopListening, isListening, isProcessing, audioLevel } =
-    useSpeech(handleSpeechResult)
+  const {
+    partialResult, startListening, stopListening,
+    isListening, isProcessing, audioLevel, error: speechError,
+  } = useSpeech(handleSpeechResult)
 
   // Auto-start recording when wake word "Taylin" fires
   const { wakeWordCount, wakeWordState } = useVoice()
@@ -77,7 +81,7 @@ export function PromptBar({
 
   const styles = makeStyles(c)
 
-  const inner = (
+  const row = (
     <View style={styles.inner}>
       {isListening && (
         <View style={styles.wave}>
@@ -147,6 +151,18 @@ export function PromptBar({
     </View>
   )
 
+  // Speech failures were invisible here: useSpeech's `error` was never
+  // destructured, so "Didn't catch that" left a disabled send button and no
+  // explanation on screen.
+  const inner = (
+    <View style={styles.stack}>
+      {row}
+      {speechError && !isListening && (
+        <Text style={styles.speechError}>{speechError}</Text>
+      )}
+    </View>
+  )
+
   if (Platform.OS === 'ios') {
     return (
       <BlurView
@@ -174,6 +190,14 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
       borderColor: c.glassBorder,
       overflow: 'hidden',
       ...floatShadow,
+    },
+    stack: { flexDirection: 'column' },
+    speechError: {
+      fontSize: 12,
+      color: c.error,
+      paddingHorizontal: 16,
+      paddingBottom: 10,
+      marginTop: -4,
     },
     wave: { justifyContent: 'center' },
     inner: {
