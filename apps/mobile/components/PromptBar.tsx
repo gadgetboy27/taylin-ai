@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -17,6 +17,18 @@ import { VoiceWave } from '@/components/VoiceWave'
 import { useVoice } from '@/context/VoiceContext'
 import { MIN_TOUCH_TARGET } from '@/lib/accessibility'
 import { floatShadow } from '@/lib/styles'
+
+// Rotating suggestions teach what the agent can do without a tutorial — the
+// hardest problem for a voice-first app is that a bare input tells you nothing
+// about what it accepts.
+const SUGGESTIONS = [
+  'What do you need?',
+  'Try: what\'s the weather tomorrow?',
+  'Try: find me single origin coffee',
+  'Try: merino base layer under $200',
+  'Try: deals near me',
+  'Try: what should I pay for a used Hilux?',
+]
 
 interface PromptBarProps {
   value: string
@@ -76,6 +88,16 @@ export function PromptBar({
     }
   }, [isListening, startListening, stopListening])
 
+  // Only rotates while the bar is idle: changing the hint under someone who is
+  // mid-thought is a distraction, and it must never replace live feedback.
+  const [hintIndex, setHintIndex] = useState(0)
+  const idle = !isListening && !isProcessing && !isLoading && value.length === 0
+  useEffect(() => {
+    if (!idle) return
+    const id = setInterval(() => setHintIndex((i) => (i + 1) % SUGGESTIONS.length), 4000)
+    return () => clearInterval(id)
+  }, [idle])
+
   const displayValue = isListening && partialResult ? partialResult : value
   const canSubmit = displayValue.trim().length > 0 && !isLoading && !isListening
 
@@ -99,7 +121,7 @@ export function PromptBar({
             ? 'Listening...'
             : isProcessing
             ? 'Processing...'
-            : placeholder ?? 'What do you need?'
+            : placeholder ?? SUGGESTIONS[hintIndex]
         }
         placeholderTextColor={c.textMuted}
         onSubmitEditing={() => onSubmit(value)}

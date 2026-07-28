@@ -21,6 +21,9 @@ import { PreferencePills } from '@/components/PreferencePills'
 import { ScreenHeader } from '@/components/ScreenHeader'
 import { LocationPrompt } from '@/components/LocationPrompt'
 import { getAddress } from '@/lib/profile-api'
+import { WeatherCard } from '@/components/WeatherCard'
+import { detectWeatherQuery, getForecast, type DayForecast } from '@/lib/weather-api'
+import { matchLocalityByPostcode, matchLocalityByName } from '@/lib/nz-localities'
 
 export default function PromptScreen() {
   const { theme } = useTheme()
@@ -42,6 +45,33 @@ export default function PromptScreen() {
   const handleSubmit = useCallback(async (text: string) => {
     const trimmed = text.trim()
     if (!trimmed || isSearching) return
+
+    // Answer weather here rather than sending it to /intent: that costs a model
+    // round trip and writes a `searches` row, neither of which fits a question
+    // about the sky. `new Date()` is the phone's clock, so "tomorrow" means
+    // tomorrow where the user is.
+    const wq = detectWeatherQuery(trimmed)
+    if (wq) {
+      try {
+        const addr = await getAddress()
+        const loc =
+          (addr?.postcode && matchLocalityByPostcode(addr.postcode)) ||
+          (addr?.suburb && matchLocalityByName(addr.suburb)) ||
+          (addr?.city && matchLocalityByName(addr.city)) || null
+        if (!loc) {
+          speak('Tell me where you are first and I can check the weather.', 'high')
+          setNeedsLocation(true)
+          return
+        }
+        const days = await getForecast({ lat: loc.lat, lng: loc.lng, days: wq.dayOffset + 1 })
+        const day = days[wq.dayOffset] ?? days[days.length - 1]
+        setWeather({ day, label: wq.label, place: loc.suburb })
+        speak(`${wq.label} in ${loc.suburb}: ${day.description}, ${day.maxC} degrees.`)
+      } catch {
+        speak("Couldn't get the forecast just now.", 'high')
+      }
+      return
+    }
 
     speak(`Searching for ${trimmed}. Please wait.`)
 
@@ -82,6 +112,7 @@ export default function PromptScreen() {
   // Prompt only when we genuinely can't place them. Anyone with a suburb on
   // file never sees this, and dismissing it lasts the session — nagging a buyer
   // who declined is worse than ranking nationally.
+  const [weather, setWeather] = useState<{ day: DayForecast; label: string; place: string } | null>(null)
   const [needsLocation, setNeedsLocation] = useState(false)
   const [locationDismissed, setLocationDismissed] = useState(false)
   useEffect(() => {
@@ -162,6 +193,17 @@ export default function PromptScreen() {
               {refreshing ? 'Resetting...' : isSearching ? 'Searching...' : theme.tagline}
             </Text>
           </View>
+
+          {weather && (
+            <View style={styles.locationSlot}>
+              <WeatherCard
+                day={weather.day}
+                label={weather.label}
+                place={weather.place}
+                onDismiss={() => setWeather(null)}
+              />
+            </View>
+          )}
 
           {needsLocation && !locationDismissed && (
             <View style={styles.locationSlot}>
