@@ -8,7 +8,8 @@ import { searchTrademe, searchTrademeMotors, isTrademeconfigured } from '../lib/
 import { searchEbay, isEbayConfigured } from '../lib/ebay.js'
 import { searchWeb, isWebSearchConfigured } from '../lib/web-search.js'
 import { searchAliexpress, isAliexpressConfigured } from '../lib/aliexpress.js'
-import { applyLocalSellerFloor } from '../lib/ranking-fairness.js'
+import { applyLocalSellerFloor, RESULT_LIMIT } from '../lib/ranking-fairness.js'
+import { findLocalProducts, getBuyerLocality } from '../lib/local-search.js'
 
 export const searchRoute = new Hono()
 
@@ -36,18 +37,29 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
   let candidates: unknown[] = []
   const sources: string[] = []
 
-  // searchTerms are alternative phrasings of the same intent, not words to
-  // concatenate — a brief for "good coffee beans" comes back as
-  // ["coffee beans", "good coffee beans"]. Joining them yields the phrase
-  // "coffee beans good coffee beans", which `name ilike '%…%'` can never
-  // match, so internal sellers silently returned nothing whenever the brief
-  // had more than one term. Match any single term instead.
-  // Commas and parens are stripped because PostgREST's `or` filter uses them
-  // as syntax; `%` and `_` because they are ilike wildcards.
-  const orFilter = brief.searchTerms
-    .map((t) => t.replace(/[,()%_]/g, ' ').trim())
-    .filter(Boolean)
-    .map((t) => `name.ilike.%${t}%`)
+  // Match individual words across name, description and category — not whole
+  // phrases against name alone.
+  //
+  // Two things broke that. searchTerms are alternative phrasings of one intent,
+  // so joining them produced nonsense like "coffee beans good coffee beans".
+  // And matching a phrase against `name` cannot work on a real catalogue: a
+  // brief of "single origin coffee beans" has to find a product actually called
+  // "Sumatra Mandheling 250g", whose generic words live in category
+  // ("Single Origin") and description, never the name. A long phrase can't
+  // substring-match a short field either, so it has to be word-level.
+  //
+  // Commas and parens are stripped because PostgREST's `or` filter uses them as
+  // syntax; % and _ because they are ilike wildcards.
+  const STOPWORDS = new Set(['the', 'and', 'for', 'with', 'from', 'good', 'best', 'some', 'any', 'new'])
+  const words = Array.from(new Set(
+    brief.searchTerms
+      .flatMap((t) => t.replace(/[,()%_]/g, ' ').toLowerCase().split(/\s+/))
+      .map((w) => w.trim())
+      .filter((w) => w.length >= 3 && !STOPWORDS.has(w))
+  ))
+
+  const orFilter = words
+    .flatMap((w) => [`name.ilike.%${w}%`, `description.ilike.%${w}%`, `category.ilike.%${w}%`])
     .join(',')
 
   if (brief.category === 'flights') {
@@ -63,61 +75,26 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
     }
     if (candidates.length) sources.push('amadeus')
   } else {
-    // Run all sources in parallel — Trade Me (NZ), eBay (global), Brave (web),
-    // AliExpress, and our own local sellers. Internal sellers used to only
-    // surface as a last-resort fallback when every external source came back
-    // empty — that structurally buried local/mom-and-pop listings any time a
-    // big external marketplace had even one hit. They're a first-class
-    // candidate source now; ranking-fairness.ts is what guarantees their
-    // visibility, not exclusion-by-default.
+    // Local first, external only if needed.
+    //
+    // Every adapter used to fire on every search, so each one cost an eBay and
+    // a Brave call regardless of whether the local market could answer, and the
+    // ranker received a candidate list dominated by external results. That
+    // domination is why ranking-fairness.ts exists — local sellers were being
+    // crowded out of a pool they barely featured in. Fetching them first means
+    // there is nothing to crowd them out.
     const isVehicle = brief.category === 'marketplace'
+    const locality = await getBuyerLocality(userId)
 
-    const [tmResult, ebayResult, webResult, aliResult, internalResult] = await Promise.allSettled([
-      isTrademeconfigured
-        ? (isVehicle
-          ? searchTrademeMotors({ query, priceMax: brief.priceMax })
-          : searchTrademe({ query, priceMax: brief.priceMax }))
-        : Promise.resolve([]),
+    const local = await findLocalProducts({
+      orFilter: orFilter || `name.ilike.%${query}%`,
+      priceMax: brief.priceMax ?? 99999,
+      locality,
+      enough: RESULT_LIMIT,
+    })
 
-      isEbayConfigured
-        ? searchEbay({ query, priceMin: brief.priceMin ?? undefined, priceMax: brief.priceMax ?? undefined })
-        : Promise.resolve([]),
-
-      isWebSearchConfigured
-        ? searchWeb({ query, priceMax: brief.priceMax ?? undefined })
-        : Promise.resolve([]),
-
-      isAliexpressConfigured
-        ? searchAliexpress({ query, priceMin: brief.priceMin ?? undefined, priceMax: brief.priceMax ?? undefined })
-        : Promise.resolve([]),
-
-      // Only active sellers are searchable at all — suspended/banned sellers
-      // are excluded here, not just deprioritized at ranking time.
-      supabase
-        .from('products')
-        .select('*, sellers!inner(trust_tier, business_name, status)')
-        .eq('sellers.status', 'active')
-        .or(orFilter || `name.ilike.%${query}%`)
-        .eq('stock_available', true)
-        .lte('price', brief.priceMax ?? 99999)
-        .limit(20)
-        .then(({ data }) => data ?? []),
-    ])
-
-    if (tmResult.status === 'fulfilled' && tmResult.value.length) {
-      candidates.push(...tmResult.value.map((r) => ({ ...r, origin: 'external' }))); sources.push('trademe')
-    }
-    if (ebayResult.status === 'fulfilled' && ebayResult.value.length) {
-      candidates.push(...ebayResult.value.map((r) => ({ ...r, origin: 'external' }))); sources.push('ebay')
-    }
-    if (webResult.status === 'fulfilled' && webResult.value.length) {
-      candidates.push(...webResult.value.map((r) => ({ ...r, origin: 'external' }))); sources.push('web')
-    }
-    if (aliResult.status === 'fulfilled' && aliResult.value.length) {
-      candidates.push(...aliResult.value.map((r) => ({ ...r, origin: 'external' }))); sources.push('aliexpress')
-    }
-    if (internalResult.status === 'fulfilled' && internalResult.value.length) {
-      candidates.push(...internalResult.value.map((r) => {
+    if (local.rows.length) {
+      candidates.push(...local.rows.map((r) => {
         const row = r as Record<string, unknown> & { sellers?: { trust_tier?: number; status?: string } }
         return {
           ...row,
@@ -126,7 +103,43 @@ searchRoute.get('/:searchId', zValidator('param', z.object({ searchId: z.string(
           trustTier: row.sellers?.trust_tier,
         }
       }))
-      sources.push('internal')
+      sources.push(local.rung ? `internal:${local.rung}` : 'internal')
+    }
+
+    // Only reach for paid external sources when local supply is genuinely thin.
+    if (candidates.length < RESULT_LIMIT) {
+      const [tmResult, ebayResult, webResult, aliResult] = await Promise.allSettled([
+        isTrademeconfigured
+          ? (isVehicle
+            ? searchTrademeMotors({ query, priceMax: brief.priceMax })
+            : searchTrademe({ query, priceMax: brief.priceMax }))
+          : Promise.resolve([]),
+
+        isEbayConfigured
+          ? searchEbay({ query, priceMin: brief.priceMin ?? undefined, priceMax: brief.priceMax ?? undefined })
+          : Promise.resolve([]),
+
+        isWebSearchConfigured
+          ? searchWeb({ query, priceMax: brief.priceMax ?? undefined })
+          : Promise.resolve([]),
+
+        isAliexpressConfigured
+          ? searchAliexpress({ query, priceMin: brief.priceMin ?? undefined, priceMax: brief.priceMax ?? undefined })
+          : Promise.resolve([]),
+      ])
+
+      if (tmResult.status === 'fulfilled' && tmResult.value.length) {
+        candidates.push(...tmResult.value.map((r) => ({ ...r, origin: 'external' }))); sources.push('trademe')
+      }
+      if (ebayResult.status === 'fulfilled' && ebayResult.value.length) {
+        candidates.push(...ebayResult.value.map((r) => ({ ...r, origin: 'external' }))); sources.push('ebay')
+      }
+      if (webResult.status === 'fulfilled' && webResult.value.length) {
+        candidates.push(...webResult.value.map((r) => ({ ...r, origin: 'external' }))); sources.push('web')
+      }
+      if (aliResult.status === 'fulfilled' && aliResult.value.length) {
+        candidates.push(...aliResult.value.map((r) => ({ ...r, origin: 'external' }))); sources.push('aliexpress')
+      }
     }
   }
 
