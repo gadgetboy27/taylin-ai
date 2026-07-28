@@ -33,16 +33,31 @@ export default function RootLayout() {
   const navigationReady = useRef(false)
 
   useEffect(() => {
-    supabase.auth.getSession()
-      .then(({ data }) => {
+    // TEMPORARY — sign-in is bypassed while Google and SMS are being fixed.
+    // The app opens straight into (tabs) on an anonymous Supabase session
+    // rather than skipping auth outright: every API route still requires a
+    // real JWT, so a client-only bypass would just 401 on the first search.
+    // An anonymous user is a genuine auth.users row, so the 018 trigger
+    // provisions public.users and searches/orders keep working.
+    // Flip AUTH_REQUIRED back to true to restore the sign-in gate.
+    const AUTH_REQUIRED = false
+
+    const ensureSession = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (data.session) return true
+      if (AUTH_REQUIRED) return false
+      const { error } = await supabase.auth.signInAnonymously()
+      return !error
+    }
+
+    ensureSession()
+      .then((ok) => {
         navigationReady.current = true
         SplashScreen.hideAsync()
-        if (!data.session) {
-          router.replace('/(auth)')
-        }
+        if (!ok) router.replace('/(auth)')
       })
       .catch(() => {
-        // Stale or corrupt session — clear it and go to auth
+        // Stale or corrupt session — clear it and fall back to the auth screen
         supabase.auth.signOut().catch(() => {})
         navigationReady.current = true
         SplashScreen.hideAsync()
@@ -53,9 +68,11 @@ export default function RootLayout() {
       if (!navigationReady.current) return
       if (session) {
         router.replace('/(tabs)')
-      } else {
+      } else if (AUTH_REQUIRED) {
         router.replace('/(auth)')
       }
+      // Signed out with auth bypassed: stay put. The next mount picks up a
+      // fresh anonymous session rather than bouncing to a gate we've disabled.
     })
 
     return () => subscription.unsubscribe()
