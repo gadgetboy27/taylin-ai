@@ -66,19 +66,29 @@ export type CatalogueImportResult = {
   productsInserted: number
 }
 
-export async function importCatalogue(sellerId: string, rawUrl: string): Promise<CatalogueImportResult> {
+/**
+ * Crawl and extract, without touching the database.
+ *
+ * Split out from importCatalogue so the interview can start crawling the
+ * moment a seller gives their website — there is no seller row yet at that
+ * point, and the crawl takes long enough (several page fetches plus an LLM
+ * call each) that doing it at the end would leave them waiting.
+ */
+export async function crawlCatalogue(rawUrl: string): Promise<{
+  pagesScanned: number
+  products: ExtractedProduct[]
+}> {
   let baseUrl: string
   try {
     baseUrl = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`).toString()
   } catch {
-    return { pagesScanned: 0, productsFound: 0, productsInserted: 0 }
+    return { pagesScanned: 0, products: [] }
   }
 
   const homepageHtml = await fetchPage(baseUrl)
-  if (!homepageHtml) return { pagesScanned: 0, productsFound: 0, productsInserted: 0 }
+  if (!homepageHtml) return { pagesScanned: 0, products: [] }
 
   const pagesToScan = [baseUrl, ...findCandidateLinks(homepageHtml, baseUrl)]
-
   const found: ExtractedProduct[] = []
   let pagesScanned = 0
 
@@ -86,17 +96,22 @@ export async function importCatalogue(sellerId: string, rawUrl: string): Promise
     const html = pageUrl === baseUrl ? homepageHtml : await fetchPage(pageUrl)
     if (!html) continue
     pagesScanned++
-    const products = await extractProducts(extractPageText(html), pageUrl)
-    found.push(...products)
+    found.push(...await extractProducts(extractPageText(html), pageUrl))
   }
 
+  return { pagesScanned, products: found }
+}
+
+/** Persist already-extracted products against a seller, deduped. */
+export async function saveCatalogue(
+  sellerId: string,
+  found: ExtractedProduct[],
+  pagesScanned: number
+): Promise<CatalogueImportResult> {
   // Drop anything without a price rather than guessing $0 — an unpriced
   // extraction is more likely a mis-parsed heading than a real free item.
   const priced = found.filter((p): p is ExtractedProduct & { price: number } => p.price != null && p.price >= 0)
 
-  // Dedupe within this run, then against products already on file for this
-  // seller — the daily re-sync (routes/sellers.ts /catalogue/resync) would
-  // otherwise insert the same products again every day.
   const { data: existing } = await supabase.from('products').select('name').eq('seller_id', sellerId)
   const existingNames = new Set((existing ?? []).map((p) => p.name.trim().toLowerCase()))
 
@@ -121,6 +136,10 @@ export async function importCatalogue(sellerId: string, rawUrl: string): Promise
   }
 
   await supabase.from('sellers').update({ catalogue_last_synced: new Date().toISOString() }).eq('id', sellerId)
-
   return { pagesScanned, productsFound: found.length, productsInserted: toInsert.length }
+}
+
+export async function importCatalogue(sellerId: string, rawUrl: string): Promise<CatalogueImportResult> {
+  const { pagesScanned, products } = await crawlCatalogue(rawUrl)
+  return saveCatalogue(sellerId, products, pagesScanned)
 }

@@ -4,13 +4,17 @@ import { zValidator } from '@hono/zod-validator'
 import { supabase } from '../lib/supabase.js'
 import { assignTier } from '../lib/tiers.js'
 import { authMiddleware } from '../middleware/auth.js'
-import { importCatalogue } from '../lib/catalogue-import.js'
+import { importCatalogue, crawlCatalogue, saveCatalogue } from '../lib/catalogue-import.js'
 import {
   conductInterview,
   scoreInterview,
   type InterviewMessage,
   type VerificationResult,
 } from '../lib/seller-interview.js'
+
+// Applications with a crawl running, so a seller sending several messages in
+// quick succession doesn't kick off duplicate crawls of the same site.
+const crawlsInFlight = new Set<string>()
 
 export const sellersRoute = new Hono()
 
@@ -221,6 +225,43 @@ sellersRoute.post(
       mergedVerifications[key] = verification
     }
 
+    // Start crawling the moment we learn the website, not at the end. The crawl
+    // is several page fetches plus an LLM call each — leaving it until
+    // completion made the seller wait at exactly the point they expect to be
+    // finished. Deliberately not awaited: the reply goes back immediately and
+    // the products are stashed on the application, ready to attach to the
+    // seller row when the interview completes.
+    const website = mergedExtracted.website as string | undefined
+    const alreadyCrawled = !!(mergedExtracted.catalogueProducts as unknown[] | undefined)
+    if (website && !alreadyCrawled && !crawlsInFlight.has(applicationId)) {
+      crawlsInFlight.add(applicationId)
+      void crawlCatalogue(website)
+        .then(async ({ pagesScanned, products }) => {
+          const { data: current } = await supabase
+            .from('seller_applications')
+            .select('extracted_data')
+            .eq('id', applicationId)
+            .maybeSingle()
+          if (!current) return
+          // Re-read rather than reuse mergedExtracted: the seller has probably
+          // answered more questions while this was running, and that newer
+          // extraction must not be clobbered by our stale copy.
+          await supabase
+            .from('seller_applications')
+            .update({
+              extracted_data: {
+                ...(current.extracted_data as Record<string, unknown>),
+                catalogueProducts: products,
+                cataloguePagesScanned: pagesScanned,
+              },
+            })
+            .eq('id', applicationId)
+          console.log(`[catalogue] ${website}: ${products.length} products from ${pagesScanned} pages`)
+        })
+        .catch((err) => console.error('[catalogue] background crawl failed:', err))
+        .finally(() => crawlsInFlight.delete(applicationId))
+    }
+
     // Handle completion
     if (response.complete) {
       const scores = await scoreInterview(
@@ -274,6 +315,27 @@ sellersRoute.post(
       // Upgrade the buyer identity to 'both' — they keep buying, and can now
       // also reach the seller dashboard as the same logged-in user.
       await supabase.from('users').update({ role: 'both' }).eq('id', userId)
+
+      // Attach whatever the background crawl found. It started as soon as the
+      // seller gave their website, so by now it has usually finished and this
+      // is just an insert — no waiting at the finish line.
+      const crawled = mergedExtracted.catalogueProducts as
+        | Parameters<typeof saveCatalogue>[1]
+        | undefined
+      if (crawled?.length) {
+        const pages = (mergedExtracted.cataloguePagesScanned as number) ?? 0
+        await saveCatalogue(seller.id, crawled, pages)
+          .catch((err) => console.error('[catalogue] save on completion failed:', err))
+      }
+      // Record the URL so the daily resync keeps the catalogue fresh — this was
+      // never set from the interview, so a seller's listings were captured once
+      // and then never updated.
+      if (mergedExtracted.website) {
+        await supabase
+          .from('sellers')
+          .update({ catalogue_url: mergedExtracted.website as string })
+          .eq('id', seller.id)
+      }
 
       await supabase
         .from('seller_applications')
