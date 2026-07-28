@@ -232,7 +232,7 @@ export default function SellerApplyScreen() {
                     {isTyping ? (
                       <ActivityIndicator size="small" color={c.textOnPrimary} />
                     ) : (
-                      <Ionicons name="arrow-up" size={18} color="#fff" />
+                      <Ionicons name="arrow-up" size={18} color={c.textOnPrimary} />
                     )}
                   </Pressable>
                 </View>
@@ -260,7 +260,7 @@ export default function SellerApplyScreen() {
                     {isTyping ? (
                       <ActivityIndicator size="small" color={c.textOnPrimary} />
                     ) : (
-                      <Ionicons name="arrow-up" size={18} color="#fff" />
+                      <Ionicons name="arrow-up" size={18} color={c.textOnPrimary} />
                     )}
                   </Pressable>
                 </View>

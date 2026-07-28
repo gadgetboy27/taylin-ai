@@ -55,10 +55,16 @@ export function ThemeSelector({ expanded = false }: ThemeSelectorProps) {
         return (
           <Pressable
             key={mode}
+            // Active state is a ring plus a faint tint, never a solid c.primary
+            // fill. Emoji are fixed-colour glyphs that can't invert with the
+            // theme, and c.primary is near-black in Light and near-white in
+            // Dark — so a solid fill made 🐾 and 🌙 vanish in Light and washed
+            // ☀️ out in Dark. A tint keeps whatever contrast the emoji has
+            // against the page background, in every theme.
             style={[
               styles.pill,
               { borderColor: isActive ? c.primary : c.border },
-              isActive && { backgroundColor: c.primary },
+              isActive && { backgroundColor: c.primary + '1F', borderWidth: 2 },
             ]}
             onPress={() => setThemeMode(mode as ThemeMode)}
             accessibilityLabel={`Switch to ${t.name} theme`}

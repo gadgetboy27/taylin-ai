@@ -121,7 +121,7 @@ export function PromptBar({
         <Ionicons
           name={isListening || isWakeDetected ? 'mic' : 'mic-outline'}
           size={22}
-          color={isListening || isWakeDetected ? '#fff' : c.micInactive}
+          color={isListening || isWakeDetected ? c.textOnPrimary : c.micInactive}
         />
         {/* Wake word active dot — shows when Porcupine is passively listening */}
         {isWakeListening && !isListening && (
@@ -139,9 +139,9 @@ export function PromptBar({
         hitSlop={4}
       >
         {isLoading ? (
-          <ActivityIndicator size="small" color="#fff" />
+          <ActivityIndicator size="small" color={c.textOnPrimary} />
         ) : (
-          <Ionicons name="arrow-up" size={20} color="#fff" />
+          <Ionicons name="arrow-up" size={20} color={c.textOnPrimary} />
         )}
       </Pressable>
     </View>
