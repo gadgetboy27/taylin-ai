@@ -16,7 +16,7 @@ import { useSearch } from '@/hooks/useSearch'
 import { useVoice } from '@/context/VoiceContext'
 import { PromptBar } from '@/components/PromptBar'
 import { PreferencePills } from '@/components/PreferencePills'
-import { ThemeSelector } from '@/components/ThemeSelector'
+import { ProfileMenu } from '@/components/ProfileMenu'
 
 export default function PromptScreen() {
   const { theme } = useTheme()
@@ -60,7 +60,7 @@ export default function PromptScreen() {
       >
         {/* ── Minimal top bar ───────────────────────────────────────── */}
         <View style={styles.topRow}>
-          <ThemeSelector />
+          <View />
           <View style={styles.topRowRight}>
             <Pressable
               style={styles.dealsChip}
@@ -78,6 +78,7 @@ export default function PromptScreen() {
             >
               <Text style={styles.balanceText}>$842.50</Text>
             </Pressable>
+            <ProfileMenu />
           </View>
         </View>
 

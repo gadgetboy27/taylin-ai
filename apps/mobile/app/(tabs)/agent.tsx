@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
-import { ThemeSelector } from '@/components/ThemeSelector'
 
 const HOW_IT_WORKS = [
   'A short chat with Taylor about your business — about 5 minutes.',
@@ -27,9 +26,8 @@ export default function AgentScreen() {
             <Text style={styles.title} accessibilityRole="header">
               Your agent
             </Text>
-            <Text style={styles.subtitle}>Preferences and appearance</Text>
+            <Text style={styles.subtitle}>Preferences and selling</Text>
           </View>
-          <ThemeSelector />
         </View>
 
         {/* Straight into the interview — the /seller landing page sat between
