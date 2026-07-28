@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase, isDevMode } from '@/lib/supabase'
 
 export type Preference = {
@@ -27,47 +27,42 @@ export function usePreferences() {
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
+  // Extracted from the mount effect so pull-to-refresh can re-run the same
+  // fetch. Returns a promise so the caller can hold the spinner until it lands.
+  const load = useCallback(async () => {
     if (isDevMode) {
       setRecentSearches(DEV_RECENT_SEARCHES)
       setLoading(false)
       return
     }
 
-    let cancelled = false
-
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user || cancelled) {
-        setLoading(false)
-        return
-      }
-
-      const [prefResult, searchResult] = await Promise.all([
-        supabase
-          .from('preferences')
-          .select('id, category, positive_signals, negative_signals, last_updated')
-          .eq('user_id', user.id)
-          .order('last_updated', { ascending: false })
-          .limit(10),
-        supabase
-          .from('searches')
-          .select('id, raw_prompt, created_at')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(8),
-      ])
-
-      if (!cancelled) {
-        setPreferences(prefResult.data || [])
-        setRecentSearches(searchResult.data || [])
-        setLoading(false)
-      }
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setLoading(false)
+      return
     }
 
-    load()
-    return () => { cancelled = true }
+    const [prefResult, searchResult] = await Promise.all([
+      supabase
+        .from('preferences')
+        .select('id, category, positive_signals, negative_signals, last_updated')
+        .eq('user_id', user.id)
+        .order('last_updated', { ascending: false })
+        .limit(10),
+      supabase
+        .from('searches')
+        .select('id, raw_prompt, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(8),
+    ])
+
+    setPreferences(prefResult.data || [])
+    setRecentSearches(searchResult.data || [])
+    setLoading(false)
   }, [])
 
-  return { preferences, recentSearches, loading }
+  useEffect(() => { void load() }, [load])
+
+  return { preferences, recentSearches, loading, reload: load }
 }

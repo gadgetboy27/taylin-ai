@@ -4,10 +4,12 @@ import {
   Text,
   Pressable,
   ScrollView,
+  RefreshControl,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native'
+import * as Haptics from 'expo-haptics'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
@@ -24,7 +26,7 @@ export default function PromptScreen() {
   const { theme } = useTheme()
   const c = theme.colors
   const [prompt, setPrompt] = useState('')
-  const { preferences, recentSearches } = usePreferences()
+  const { preferences, recentSearches, reload: reloadPreferences } = usePreferences()
   const { startSearch, status } = useSearch()
   const { startWakeWord } = useVoice()
 
@@ -50,6 +52,30 @@ export default function PromptScreen() {
       speak('Search failed. Please try again.', 'high')
     }
   }, [isSearching, startSearch, speak])
+
+  // Pull down to reset — the iOS convention, and the fastest way to clear a
+  // half-finished prompt and pick up anything that changed server-side
+  // (a new deal, a search from another device) without hunting for a button.
+  const [refreshing, setRefreshing] = useState(false)
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true)
+    // Haptic on the pull, not on completion: the tick should land when the
+    // gesture is recognised, which is what makes it feel native.
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {})
+    }
+    setPrompt('')
+    try {
+      await Promise.all([
+        reloadPreferences(),
+        getAddress()
+          .then((a) => setNeedsLocation(!a?.suburb && !a?.postcode))
+          .catch(() => {}),
+      ])
+    } finally {
+      setRefreshing(false)
+    }
+  }, [reloadPreferences])
 
   const styles = makeStyles(c)
 
@@ -96,10 +122,27 @@ export default function PromptScreen() {
 
         {/* ── Scrollable content area — blurs under the PromptBar ───── */}
         <ScrollView
-          style={styles.scroll}
+          style={[
+            styles.scroll,
+            // Mobile browsers run their own pull-to-refresh, which swallows the
+            // gesture and reloads the page before RefreshControl ever sees it.
+            // Containing the overscroll keeps the pull inside the app.
+            Platform.OS === 'web'
+              ? ({ overscrollBehaviorY: 'contain' } as object)
+              : null,
+          ]}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={c.textMuted}
+              colors={[c.primary]}
+              progressBackgroundColor={c.surface}
+            />
+          }
         >
           {/* Hero */}
           <View style={styles.hero} accessibilityElementsHidden={false}>
