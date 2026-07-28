@@ -16,7 +16,7 @@ import { useSearch } from '@/hooks/useSearch'
 import { useVoice } from '@/context/VoiceContext'
 import { PromptBar } from '@/components/PromptBar'
 import { PreferencePills } from '@/components/PreferencePills'
-import { ProfileMenu } from '@/components/ProfileMenu'
+import { ScreenHeader } from '@/components/ScreenHeader'
 
 export default function PromptScreen() {
   const { theme } = useTheme()
@@ -58,29 +58,28 @@ export default function PromptScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
-        {/* ── Minimal top bar ───────────────────────────────────────── */}
-        <View style={styles.topRow}>
-          <View />
-          <View style={styles.topRowRight}>
-            <Pressable
-              style={styles.dealsChip}
-              onPress={() => router.push('/deals')}
-              accessibilityLabel="Local deals. Tap to see time-limited offers near you."
-              accessibilityRole="button"
-            >
-              <Text style={styles.dealsText}>Deals</Text>
-            </Pressable>
-            <Pressable
-              style={styles.balanceChip}
-              onPress={() => router.push('/wallet')}
-              accessibilityLabel="Wallet balance. Tap to manage your wallet."
-              accessibilityRole="button"
-            >
-              <Text style={styles.balanceText}>$842.50</Text>
-            </Pressable>
-            <ProfileMenu />
-          </View>
-        </View>
+        <ScreenHeader
+          right={
+            <>
+              <Pressable
+                style={styles.dealsChip}
+                onPress={() => router.push('/deals')}
+                accessibilityLabel="Local deals. Tap to see time-limited offers near you."
+                accessibilityRole="button"
+              >
+                <Text style={styles.dealsText}>Deals</Text>
+              </Pressable>
+              <Pressable
+                style={styles.balanceChip}
+                onPress={() => router.push('/wallet')}
+                accessibilityLabel="Wallet balance. Tap to manage your wallet."
+                accessibilityRole="button"
+              >
+                <Text style={styles.balanceText}>$842.50</Text>
+              </Pressable>
+            </>
+          }
+        />
 
         {/* ── Scrollable content area — blurs under the PromptBar ───── */}
         <ScrollView

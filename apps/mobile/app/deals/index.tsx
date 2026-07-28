@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { View, Text, FlatList, Pressable, StyleSheet, RefreshControl } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
 import { listDeals, claimDeal, type Deal } from '@/lib/deals-api'
@@ -41,12 +42,7 @@ export default function DealsScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
-          <Text style={styles.backText}>← Back</Text>
-        </Pressable>
-        <Text style={styles.title} accessibilityRole="header">Local deals</Text>
-      </View>
+      <ScreenHeader title="Local deals" back />
 
       <FlatList
         data={deals}
@@ -89,7 +85,6 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.background },
     header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8, gap: 8 },
-    backText: { color: c.accent, fontSize: 16 },
     title: { fontSize: 24, fontWeight: '800', color: c.text },
 
     list: { padding: 16, gap: 10 },

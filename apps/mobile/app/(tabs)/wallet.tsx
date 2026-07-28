@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '@/context/ThemeContext'
 import { SPEND_LIMITS } from '@/constants/fees'
@@ -93,10 +94,8 @@ export default function WalletScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <ScreenHeader title="Wallet" />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <Text style={styles.title} accessibilityRole="header">
-          Wallet
-        </Text>
 
         <View style={styles.balanceCard} accessibilityLabel="Current wallet balance: $842.50 New Zealand dollars">
           <Text style={styles.balanceLabel}>Available balance</Text>
@@ -205,14 +204,6 @@ export default function WalletScreen() {
           </Text>
         </View>
 
-        <Pressable
-          onPress={handleSignOut}
-          style={styles.signOutBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Sign out"
-        >
-          <Text style={styles.signOutText}>Sign out</Text>
-        </Pressable>
       </ScrollView>
     </SafeAreaView>
   )
@@ -236,7 +227,6 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
     safe: { flex: 1, backgroundColor: c.background },
     container: { flex: 1 },
     content: { padding: 20, paddingBottom: 40 },
-    title: { fontSize: 28, fontWeight: '700', color: c.text, marginBottom: 20 },
     balanceCard: {
       backgroundColor: c.primary,
       borderRadius: 20,
@@ -302,7 +292,5 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
       padding: 16,
     },
     securityText: { color: c.text, fontSize: 13, lineHeight: 20 },
-    signOutBtn: { alignItems: 'center', paddingVertical: 18, marginTop: 12 },
-    signOutText: { color: c.error, fontSize: 15, fontWeight: '600' },
   })
 }

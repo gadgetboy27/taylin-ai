@@ -1,6 +1,7 @@
 import React from 'react'
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
 
@@ -18,17 +19,8 @@ export default function AgentScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
+      <ScreenHeader title="Your agent" subtitle="Preferences and selling" />
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Theme lives inline with the title — as a full section it was taking
-            most of the first screen ahead of anything actionable. */}
-        <View style={styles.headerRow}>
-          <View style={styles.headerText}>
-            <Text style={styles.title} accessibilityRole="header">
-              Your agent
-            </Text>
-            <Text style={styles.subtitle}>Preferences and selling</Text>
-          </View>
-        </View>
 
         {/* Straight into the interview — the /seller landing page sat between
             here and the only action on it, so it cost a tap without adding
@@ -69,16 +61,6 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.background },
     container: { padding: 20, paddingBottom: 40 },
-    headerRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      justifyContent: 'space-between',
-      gap: 12,
-      marginBottom: 20,
-    },
-    headerText: { flexShrink: 1 },
-    title: { fontSize: 28, fontWeight: '700', color: c.text },
-    subtitle: { fontSize: 15, color: c.textMuted, marginTop: 4 },
     section: {
       backgroundColor: c.surface,
       borderRadius: 16,

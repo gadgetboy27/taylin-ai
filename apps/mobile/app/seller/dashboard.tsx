@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { View, Text, Pressable, ScrollView, StyleSheet, ActivityIndicator, Linking, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
 import { getMySellerProfile, type SellerProfile } from '@/lib/seller-api'
@@ -108,8 +109,8 @@ export default function SellerDashboardScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <ScreenHeader title="Your shop" back />
       <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.eyebrow}>Your shop</Text>
         <Text style={styles.heading}>{profile.business_name}</Text>
         <Text style={styles.tierBadge}>{TIER_LABEL[profile.trust_tier]}</Text>
 
@@ -186,10 +187,6 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
     emptyBody: { fontSize: 14, color: c.textSecondary, textAlign: 'center' },
 
     scroll: { padding: 24 },
-    eyebrow: {
-      fontSize: 13, fontWeight: '600', color: c.accent,
-      textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8,
-    },
     heading: { fontSize: 28, fontWeight: '800', color: c.text, marginBottom: 8 },
     tierBadge: { fontSize: 14, color: c.textSecondary, marginBottom: 24 },
 

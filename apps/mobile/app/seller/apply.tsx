@@ -16,6 +16,7 @@ import { BlurView } from 'expo-blur'
 import { Ionicons } from '@expo/vector-icons'
 import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { ChatBubble, TypingIndicator } from '@/components/ChatBubble'
 import { startInterview, sendMessage, InterviewError, type InterviewMessage } from '@/lib/seller-api'
 import { floatShadow } from '@/lib/styles'
@@ -150,22 +151,11 @@ export default function SellerApplyScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          hitSlop={8}
-        >
-          <Ionicons name="chevron-back" size={24} color={c.text} />
-        </Pressable>
-        <View style={styles.headerCenter}>
-          <View style={styles.taylorDot} />
-          <Text style={styles.headerTitle}>Taylor</Text>
-        </View>
-        <View style={{ width: 24 }} />
-      </View>
+      <ScreenHeader
+        title="Taylor"
+        back
+        right={<View style={styles.taylorDot} />}
+      />
 
       <KeyboardAvoidingView
         style={styles.kav}

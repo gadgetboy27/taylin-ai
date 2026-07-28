@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { View, Text, FlatList, StyleSheet, Pressable } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
 import { supabase } from '@/lib/supabase'
@@ -32,11 +33,7 @@ export default function HistoryScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title} accessibilityRole="header">
-          Purchase history
-        </Text>
-      </View>
+      <ScreenHeader title="Purchase history" />
       <FlatList
         data={orders}
         keyExtractor={(item) => item.id}
@@ -88,8 +85,6 @@ function statusColor(status: string, c: ReturnType<typeof useTheme>['theme']['co
 function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.background },
-    header: { padding: 20, paddingBottom: 8 },
-    title: { fontSize: 28, fontWeight: '700', color: c.text },
     list: { paddingHorizontal: 20, paddingBottom: 32, gap: 8 },
     empty: { color: c.textMuted, fontSize: 15, textAlign: 'center', marginTop: 40 },
     row: {

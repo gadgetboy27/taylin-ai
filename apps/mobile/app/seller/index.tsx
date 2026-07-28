@@ -8,6 +8,7 @@ import {
   Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { ScreenHeader } from '@/components/ScreenHeader'
 import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
 import { getCurrentApplication, type CurrentApplication } from '@/lib/seller-api'
@@ -48,16 +49,9 @@ export default function SellerLandingScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <ScreenHeader title="Sell on taylin.ai" back />
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        <Pressable
-          style={styles.backRow}
-          onPress={() => router.back()}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Text style={styles.backText}>← Back</Text>
-        </Pressable>
 
         <View style={styles.hero}>
           <Text style={styles.eyebrow}>Sell on taylin.ai</Text>
@@ -115,10 +109,6 @@ function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: c.background },
     scroll: { paddingBottom: 24 },
-
-    backRow: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4 },
-    backText: { color: c.accent, fontSize: 16 },
-
     hero: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 32 },
     eyebrow: {
       fontSize: 13,
