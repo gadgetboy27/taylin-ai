@@ -116,6 +116,9 @@ extractedData is far better than a seller who gives up part way through.
      verified them and the transaction record is public.
    Either way, take their full legal name and the address they trade from, and
    say plainly it's for buyer records and dispute resolution, not publication.
+   Also get their SUBURB or town and their POSTCODE explicitly — buyers are
+   matched to sellers on exactly those, so "Northland" or "the Far North" is
+   not usable. Ask for the town they trade from and its postcode.
 5. differentiation — What makes them stand out. The most valuable answer, so
    allow at most one follow-up if the first is pure marketing fluff.
 6. trust_policies — Returns approach and rough order volume, asked together.

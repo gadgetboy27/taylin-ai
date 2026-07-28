@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { zValidator } from '@hono/zod-validator'
 import { supabase } from '../lib/supabase.js'
 import { assignTier } from '../lib/tiers.js'
+import { normaliseLocality } from '../lib/nz-localities.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { importCatalogue, crawlCatalogue, saveCatalogue } from '../lib/catalogue-import.js'
 import {
@@ -270,6 +271,12 @@ sellersRoute.post(
         finalHistory
       )
 
+      const locality = normaliseLocality({
+        postcode: mergedExtracted.postcode as string | undefined,
+        text: (mergedExtracted.locationNZ as string | undefined)
+          ?? (mergedExtracted.tradingAddress as string | undefined),
+      })
+
       // An NZBN only counts if the register actually confirmed it — a seller
       // typing 13 digits proves nothing on its own.
       const nzbnVerified = mergedVerifications.nzbn?.success === true
@@ -304,8 +311,15 @@ sellersRoute.post(
           verification_summary: mergedVerifications,
           onboarded_at: new Date().toISOString(),
           owner_user_id: userId,
-          postcode: (mergedExtracted.postcode as string) ?? null,
-          city: (mergedExtracted.locationNZ as string) ?? null,
+          // Normalise through the same table buyers resolve against, so both
+          // sides of the ladder in routes/search.ts speak one vocabulary. Left
+          // raw, Taylor's prose ("Paihia, Te Tokerou (Te Tai Tokerau),
+          // Northland; serves North Island") could never match a buyer's city
+          // and the suburb rung stayed permanently empty.
+          suburb: locality?.suburb ?? null,
+          city: locality?.city ?? (mergedExtracted.locationNZ as string) ?? null,
+          postcode: locality?.postcode ?? (mergedExtracted.postcode as string) ?? null,
+          country: 'NZ',
         })
         .select('id, trust_tier')
         .single()

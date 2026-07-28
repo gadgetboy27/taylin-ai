@@ -4,6 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { ScreenHeader } from '@/components/ScreenHeader'
 import { Ionicons } from '@expo/vector-icons'
 import { DealsMap, placeDeals } from '@/components/DealsMap'
+import { getAddress } from '@/lib/profile-api'
+import {
+  matchLocalityByPostcode, matchLocalityByName, distanceKm, describeDistance,
+  type Locality,
+} from '@/lib/nz-localities'
 import { router } from 'expo-router'
 import { useTheme } from '@/context/ThemeContext'
 import { listDeals, claimDeal, type Deal } from '@/lib/deals-api'
@@ -15,6 +20,22 @@ export default function DealsScreen() {
 
   const [deals, setDeals] = useState<Deal[]>([])
   const [mapOpen, setMapOpen] = useState(false)
+
+  // Buyer locality, so each deal can show how far away it is. Resolved once —
+  // the distance itself is arithmetic against the offline table, no lookups.
+  const [me, setMe] = useState<Locality | null>(null)
+  useEffect(() => {
+    getAddress()
+      .then((a) => {
+        if (!a) return
+        setMe(
+          (a.postcode && matchLocalityByPostcode(a.postcode)) ||
+          (a.suburb && matchLocalityByName(a.suburb)) ||
+          (a.city && matchLocalityByName(a.city)) || null
+        )
+      })
+      .catch(() => {/* no address on file — deals just won't show a distance */})
+  }, [])
   const [refreshing, setRefreshing] = useState(false)
   const [claimingId, setClaimingId] = useState<string | null>(null)
 
@@ -91,6 +112,20 @@ export default function DealsScreen() {
               <Text style={styles.cardMeta}>
                 {item.currency} {item.price.toFixed(2)} · {item.quantity_remaining} left
               </Text>
+              {(() => {
+                if (!me) return null
+                const s = item.sellers
+                const there =
+                  (s?.postcode && matchLocalityByPostcode(s.postcode)) ||
+                  (s?.suburb && matchLocalityByName(s.suburb)) ||
+                  (s?.city && matchLocalityByName(s.city)) || null
+                if (!there) return null
+                return (
+                  <Text style={styles.cardDistance}>
+                    {describeDistance(distanceKm(me, there)).label}
+                  </Text>
+                )
+              })()}
             </View>
             <Pressable
               style={[styles.claimBtn, claimingId === item.id && styles.claimBtnDisabled]}
@@ -110,6 +145,7 @@ export default function DealsScreen() {
 
 function makeStyles(c: ReturnType<typeof useTheme>['theme']['colors']) {
   return StyleSheet.create({
+    cardDistance: { fontSize: 12, color: c.accent, marginTop: 3, fontWeight: '600' },
     mapChip: {
       flexDirection: 'row',
       alignItems: 'center',

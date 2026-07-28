@@ -158,3 +158,36 @@ export function nearestLocality(lat: number, lng: number): { locality: Locality;
 
   return best ? { locality: best, km: bestKm } : null
 }
+
+/** Straight-line km between two localities. Same approximation as nearestLocality. */
+export function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const x = (b.lng - a.lng) * Math.cos(((a.lat + b.lat) / 2) * Math.PI / 180)
+  const y = b.lat - a.lat
+  return Math.sqrt(x * x + y * y) * 111.32
+}
+
+export type DistanceBand = {
+  label: string
+  /** Rough mode hint. Deliberately coarse — see the note below. */
+  mode: 'here' | 'walk' | 'bike' | 'drive' | 'far'
+}
+
+/**
+ * Describe a distance in bands rather than minutes.
+ *
+ * No travel-time estimate is given on purpose. Pins resolve to a locality
+ * centre, not a street address, and this distance is straight-line — which is
+ * badly wrong wherever NZ geography gets in the way. Paihia to Russell is ~3km
+ * across the water and ~30km by road, or a ferry. A confident "12 min drive"
+ * would be most wrong exactly where people rely on it. Real ETAs need road
+ * routing, and that only becomes meaningful once a delivery address gives us
+ * street-level data at checkout.
+ */
+export function describeDistance(km: number): DistanceBand {
+  if (km < 1) return { label: 'In your area', mode: 'here' }
+  if (km < 3) return { label: `${Math.round(km)} km · walkable`, mode: 'walk' }
+  if (km < 10) return { label: `${Math.round(km)} km · short ride`, mode: 'bike' }
+  if (km < 60) return { label: `${Math.round(km)} km away`, mode: 'drive' }
+  if (km < 300) return { label: `${Math.round(km)} km · same region`, mode: 'drive' }
+  return { label: `${Math.round(km)} km · elsewhere in NZ`, mode: 'far' }
+}
