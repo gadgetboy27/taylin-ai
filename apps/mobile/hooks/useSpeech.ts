@@ -30,9 +30,27 @@ const WEB_MIME_CANDIDATES = [
   'audio/ogg;codecs=opus',
 ]
 
+/** iOS is always WebKit regardless of the browser badge, so match the platform too. */
+function isAppleWebKit(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  return /iPad|iPhone|iPod/.test(ua) || (/Safari/.test(ua) && !/Chrome|Chromium|Android/.test(ua))
+}
+
 function pickWebMimeType(): string | undefined {
-  if (typeof MediaRecorder === 'undefined') return undefined
-  return WEB_MIME_CANDIDATES.find((t) => MediaRecorder.isTypeSupported(t))
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
+    return undefined
+  }
+  // Safari has reported webm as supported while recording nothing usable, so
+  // don't let it pick webm off the front of the list — mp4 is what it actually
+  // records. Trusting isTypeSupported here is what produced silent empty
+  // recordings on iPhone.
+  const candidates = isAppleWebKit()
+    ? ['audio/mp4', 'audio/aac', ...WEB_MIME_CANDIDATES]
+    : WEB_MIME_CANDIDATES
+  return candidates.find((t) => {
+    try { return MediaRecorder.isTypeSupported(t) } catch { return false }
+  })
 }
 
 export function useSpeech(onResult: (text: string) => void, options?: SpeechOptions) {
@@ -167,7 +185,11 @@ export function useSpeech(onResult: (text: string) => void, options?: SpeechOpti
         const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
         webChunksRef.current = []
         recorder.ondataavailable = (e) => { if (e.data.size > 0) webChunksRef.current.push(e.data) }
-        recorder.start()
+        // Timeslice rather than a bare start(): without one, Safari only emits
+        // data at stop and has been observed emitting none at all, which is
+        // exactly the "listening, then nothing recorded" symptom on iPhone.
+        // Chunking every second means audio is banked as it goes.
+        recorder.start(1000)
         webRecorderRef.current = recorder
         startMetering(stream)
 
@@ -231,17 +253,34 @@ export function useSpeech(onResult: (text: string) => void, options?: SpeechOpti
         setPartialResult('Transcribing…')
 
         // MediaRecorder flushes its last chunk asynchronously, so the blob is
-        // only complete once onstop has fired.
+        // only complete once onstop has fired — but Safari doesn't always fire
+        // it, which would leave this promise pending and the UI stuck on
+        // "Transcribing…" forever. Resolve on whichever comes first.
         const blob = await new Promise<Blob>((resolve) => {
-          recorder.onstop = () => resolve(
-            new Blob(webChunksRef.current, { type: recorder.mimeType || 'audio/webm' })
-          )
-          recorder.stop()
+          let settled = false
+          const finish = () => {
+            if (settled) return
+            settled = true
+            resolve(new Blob(webChunksRef.current, {
+              type: recorder.mimeType || 'audio/webm',
+            }))
+          }
+          recorder.onstop = finish
+          setTimeout(finish, 1500)
+          // Flush whatever is buffered before stopping; on Safari this is often
+          // the only chunk that ever arrives.
+          try { if (recorder.state === 'recording') recorder.requestData() } catch { /* not fatal */ }
+          try { recorder.stop() } catch { finish() }
         })
 
         releaseWebMic()
 
-        if (blob.size === 0) throw new Error('No audio recorded')
+        // Name the format in the message: an empty blob is almost always a
+        // container the browser claimed to support but didn't record, and
+        // without it there's nothing to debug from a phone.
+        if (blob.size === 0) {
+          throw new Error(`No audio captured (${recorder.mimeType || 'unknown format'}) — try again`)
+        }
 
         const ext = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm'
         const formData = new FormData()
