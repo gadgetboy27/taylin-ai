@@ -283,15 +283,21 @@ sellersRoute.post(
         text: locationText,
       })
 
-      if (!locality && locationText) {
-        const geo = await geocodeNZ(locationText)
+      if (!locality) {
+        // Geocode the street address in preference to the town: a town-level
+        // query returns coordinates but no postcode, while a street query
+        // returns both ("Raglan" → no postcode, "Bow Street, Raglan" → 3225).
+        // The offline table above wants the opposite, hence the different order.
+        const geoQuery =
+          (mergedExtracted.tradingAddress as string | undefined) || locationText
+        const geo = geoQuery ? await geocodeNZ(geoQuery) : null
         if (geo) {
           locality = {
             suburb: geo.suburb,
             city: geo.city,
             postcode: geo.postcode ?? (mergedExtracted.postcode as string) ?? '',
           }
-          console.log(`[geocode] placed "${locationText}" → ${geo.suburb} ${geo.postcode ?? ''}`)
+          console.log(`[geocode] placed "${geoQuery}" → ${geo.suburb} ${geo.postcode ?? ''}`)
         }
       }
 
