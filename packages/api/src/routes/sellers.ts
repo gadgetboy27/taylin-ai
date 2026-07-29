@@ -4,6 +4,7 @@ import { zValidator } from '@hono/zod-validator'
 import { supabase } from '../lib/supabase.js'
 import { assignTier } from '../lib/tiers.js'
 import { normaliseLocality } from '../lib/nz-localities.js'
+import { geocodeNZ } from '../lib/geocode.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { importCatalogue, crawlCatalogue, saveCatalogue } from '../lib/catalogue-import.js'
 import {
@@ -271,11 +272,28 @@ sellersRoute.post(
         finalHistory
       )
 
-      const locality = normaliseLocality({
+      const locationText = (mergedExtracted.locationNZ as string | undefined)
+        ?? (mergedExtracted.tradingAddress as string | undefined)
+
+      // Offline table first — it covers the main centres for free. Geocoding
+      // only runs when it misses, which is the case that previously left a
+      // seller unplaceable: no map pin, and no match on the suburb rung.
+      let locality = normaliseLocality({
         postcode: mergedExtracted.postcode as string | undefined,
-        text: (mergedExtracted.locationNZ as string | undefined)
-          ?? (mergedExtracted.tradingAddress as string | undefined),
+        text: locationText,
       })
+
+      if (!locality && locationText) {
+        const geo = await geocodeNZ(locationText)
+        if (geo) {
+          locality = {
+            suburb: geo.suburb,
+            city: geo.city,
+            postcode: geo.postcode ?? (mergedExtracted.postcode as string) ?? '',
+          }
+          console.log(`[geocode] placed "${locationText}" → ${geo.suburb} ${geo.postcode ?? ''}`)
+        }
+      }
 
       // An NZBN only counts if the register actually confirmed it — a seller
       // typing 13 digits proves nothing on its own.
