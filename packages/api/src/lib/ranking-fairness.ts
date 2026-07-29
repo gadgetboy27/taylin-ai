@@ -22,14 +22,51 @@ type RelevanceEntry = {
   relevanceRank: number
 }
 
+/**
+ * Eligible for a reserved slot.
+ *
+ * Trust tier is deliberately NOT part of this. Tier is the verification axis;
+ * status is the enforcement axis, and "should this seller be visible" is an
+ * enforcement question that sellerStatus already answers — seller-fraud.ts
+ * moves bad actors to flagged/suspended. Gating on tier as well meant a real
+ * local business with a verified website and NZBN was excluded from the floor
+ * written to protect exactly that seller, because tier 1 needs >10 orders
+ * (unreachable when new) and tier 2 needs identity verification they may not
+ * have done yet.
+ *
+ * The financial risk that gate appeared to cover is already covered better
+ * elsewhere: lib/tiers.ts makes tier 3 the most protected transaction on the
+ * platform — escrow required, buyer confirmation required, 7-day auto-release.
+ * An unverified seller cannot take a buyer's money and vanish.
+ */
 function isQualifyingLocal(entry: RelevanceEntry, topHalfCutoff: number): boolean {
   const c = entry.item as Candidate
   return (
     c.origin === 'internal' &&
     c.sellerStatus === 'active' &&
-    (c.trustTier === 1 || c.trustTier === 2) &&
     entry.relevanceRank < topHalfCutoff
   )
+}
+
+/** Verified sellers get first refusal on the reserved slots — see below. */
+function isVerified(entry: RelevanceEntry): boolean {
+  const c = entry.item as Candidate
+  return c.trustTier === 1 || c.trustTier === 2
+}
+
+/**
+ * Order candidates for promotion: verified first, then by relevance within
+ * each group.
+ *
+ * This is what keeps verification worth doing now that it no longer gates
+ * visibility outright. A verified seller takes the first reserved slot ahead of
+ * an unverified one, so verifying buys priority — but an unverified local
+ * seller is never shut out, which is the outcome the floor exists for.
+ */
+function promotionOrder(a: RelevanceEntry, b: RelevanceEntry): number {
+  const av = isVerified(a) ? 0 : 1
+  const bv = isVerified(b) ? 0 : 1
+  return av !== bv ? av - bv : a.relevanceRank - b.relevanceRank
 }
 
 /**
@@ -56,9 +93,9 @@ export function applyLocalSellerFloor(
   const initialTopN = relevanceOrder.slice(0, RESULT_LIMIT)
   const inTopN = new Set(initialTopN)
 
-  const qualifyingLocalsOutsideTopN = relevanceOrder.filter(
-    (entry) => !inTopN.has(entry) && isQualifyingLocal(entry, topHalfCutoff)
-  )
+  const qualifyingLocalsOutsideTopN = relevanceOrder
+    .filter((entry) => !inTopN.has(entry) && isQualifyingLocal(entry, topHalfCutoff))
+    .sort(promotionOrder)
 
   const alreadyLocalInTopN = initialTopN.filter((e) => isQualifyingLocal(e, topHalfCutoff)).length
   const slotsNeeded = Math.max(0, FLOOR_SLOTS - alreadyLocalInTopN)
